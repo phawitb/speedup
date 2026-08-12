@@ -908,15 +908,7 @@ class _CompletionSheetState extends State<CompletionSheet>
     try {
       final transcript = await _transcribeForSave();
       await widget.videoRecording.save(
-        transcriptSegments: transcript.segments
-            .map(
-              (segment) => {
-                'text': segment.text,
-                'startMs': segment.startMs,
-                'endMs': segment.endMs,
-              },
-            )
-            .toList(),
+        transcriptSegments: _subtitleSegments(transcript),
       );
       if (!mounted) return;
       setState(() {
@@ -1111,6 +1103,58 @@ class _CompletionSheetState extends State<CompletionSheet>
     savedTranscription = await _transcription.transcribe(savedWavPath!);
     widget.videoRecording.exportProgress.value = .32;
     return savedTranscription!;
+  }
+
+  List<Map<String, Object?>> _subtitleSegments(TranscriptionResult transcript) {
+    final cleanSegments = transcript.segments
+        .where((segment) => segment.text.trim().isNotEmpty)
+        .toList();
+    final totalMs = (widget.controller.session.elapsedSeconds * 1000).clamp(
+      1000,
+      600000,
+    );
+    final hasUsefulSegments =
+        cleanSegments.length >= 2 &&
+        cleanSegments.fold<int>(
+              0,
+              (sum, segment) =>
+                  sum + (segment.endMs - segment.startMs).clamp(0, totalMs),
+            ) >
+            totalMs * .55;
+    final source = hasUsefulSegments
+        ? cleanSegments
+        : _fallbackSubtitleSegments(transcript.text, totalMs);
+    return source
+        .map(
+          (segment) => {
+            'text': segment.text,
+            'startMs': segment.startMs,
+            'endMs': segment.endMs,
+          },
+        )
+        .toList();
+  }
+
+  List<TranscriptSegment> _fallbackSubtitleSegments(String text, int totalMs) {
+    final words = text
+        .split(RegExp(r'\s+'))
+        .map((word) => word.trim())
+        .where((word) => word.isNotEmpty)
+        .toList();
+    if (words.isEmpty) return const [];
+    final chunks = <String>[];
+    for (var index = 0; index < words.length; index += 7) {
+      chunks.add(words.skip(index).take(7).join(' '));
+    }
+    final step = totalMs / chunks.length;
+    return [
+      for (var index = 0; index < chunks.length; index++)
+        TranscriptSegment(
+          text: chunks[index],
+          startMs: (index * step).round(),
+          endMs: ((index + 1) * step).round(),
+        ),
+    ];
   }
 }
 

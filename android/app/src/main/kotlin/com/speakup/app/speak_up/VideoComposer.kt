@@ -483,9 +483,13 @@ private class SpeakUpOverlay(
         if (transcriptSegments.isEmpty()) return
         val timeMs = timeUs / 1000L
         val active = transcriptSegments.firstOrNull {
-            val start = ((it["startMs"] as? Number)?.toLong() ?: 0L) - 180L
-            val end = ((it["endMs"] as? Number)?.toLong() ?: start + 2600L) + 320L
+            val start = ((it["startMs"] as? Number)?.toLong() ?: 0L) - 350L
+            val end = ((it["endMs"] as? Number)?.toLong() ?: start + 3000L) + 900L
             timeMs in start..end
+        } ?: transcriptSegments.lastOrNull {
+            val start = (it["startMs"] as? Number)?.toLong() ?: 0L
+            val end = ((it["endMs"] as? Number)?.toLong() ?: start + 3000L) + 1400L
+            timeMs >= start && timeMs <= end
         } ?: return
         val text = (active["text"] as? String)?.trim().orEmpty()
         if (text.isEmpty()) return
@@ -498,7 +502,7 @@ private class SpeakUpOverlay(
         val lines = wrapLines(text, paint, width - 110f, 2)
         val lineHeight = 38f
         val boxHeight = 34f + lines.size * lineHeight
-        val top = height - 150f - boxHeight
+        val top = height - 92f - boxHeight
         val box = RectF(52f, top, width - 52f, top + boxHeight)
         canvas.drawRoundRect(box, 20f, 20f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(178, 18, 17, 16) })
         lines.forEachIndexed { index, line ->
