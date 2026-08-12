@@ -34,7 +34,6 @@ class AppController extends ChangeNotifier {
       difficulty: Difficulty.values[prefs.getInt('difficulty') ?? 0],
       topicCategory: prefs.getString('category') ?? 'Random',
       durationSeconds: prefs.getInt('duration') ?? 60,
-      filter: prefs.getString('filter') ?? 'None',
     );
     controller.session = PracticeSession(
       topic: prefs.getString('topic') ?? topics.first,
@@ -83,7 +82,6 @@ class AppController extends ChangeNotifier {
       _prefs.setInt('difficulty', value.difficulty.index),
       _prefs.setString('category', value.topicCategory),
       _prefs.setInt('duration', value.durationSeconds),
-      _prefs.setString('filter', value.filter),
     ]);
   }
 

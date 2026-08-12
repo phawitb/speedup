@@ -26,24 +26,20 @@ class PracticeSettings {
     this.difficulty = Difficulty.random,
     this.topicCategory = 'Random',
     this.durationSeconds = 60,
-    this.filter = 'None',
   });
 
   final Difficulty difficulty;
   final String topicCategory;
   final int durationSeconds;
-  final String filter;
 
   PracticeSettings copyWith({
     Difficulty? difficulty,
     String? topicCategory,
     int? durationSeconds,
-    String? filter,
   }) => PracticeSettings(
     difficulty: difficulty ?? this.difficulty,
     topicCategory: topicCategory ?? this.topicCategory,
     durationSeconds: durationSeconds ?? this.durationSeconds,
-    filter: filter ?? this.filter,
   );
 }
 

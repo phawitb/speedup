@@ -27,8 +27,10 @@ class DirectVideoRecordingService {
   final AvatarStyle avatarStyle;
 
   String? pendingVideoPath;
+  String? _rawVideoPath;
   String? error;
   bool isRecording = false;
+  bool isPrepared = false;
   bool _saved = false;
   Timer? _sampleTimer;
   final List<Map<String, Object>> _faceSamples = [];
@@ -40,6 +42,8 @@ class DirectVideoRecordingService {
     _sampleTimer = null;
     _faceSamples.clear();
     pendingVideoPath = null;
+    _rawVideoPath = null;
+    isPrepared = false;
     _saved = false;
     error = null;
     await _start(retryAfterRecovery: true);
@@ -102,36 +106,9 @@ class DirectVideoRecordingService {
       final raw = await cameraService.controller!.stopVideoRecording();
       isRecording = false;
       await cameraService.resumeAvatarTracking();
-      if (Platform.isAndroid) {
-        pendingVideoPath = await _channel
-            .invokeMethod<String>('compose', {
-              'inputPath': raw.path,
-              'topic': topic,
-              'day': day,
-              'durationSeconds': durationSeconds,
-              'avatarMode': !cameraService.isEnabled,
-              'avatarCat': avatarStyle.cat,
-              'avatarScarf': avatarStyle.scarf,
-              'avatarBackground': avatarStyle.background,
-              'faceSamples': _faceSamples,
-            })
-            .timeout(
-              const Duration(minutes: 2),
-              onTimeout: () => throw TimeoutException(
-                'Video processing took too long. Please record again.',
-              ),
-            );
-        try {
-          await File(raw.path).delete();
-        } catch (_) {}
-      } else {
-        // iOS records directly without ReplayKit. Native composition can be
-        // added independently; the source movie already contains camera audio.
-        pendingVideoPath = raw.path;
-      }
-      if (pendingVideoPath == null) {
-        throw StateError('Video export returned no file.');
-      }
+      _rawVideoPath = raw.path;
+      pendingVideoPath = raw.path;
+      isPrepared = !Platform.isAndroid;
       error = null;
     } catch (exception) {
       error = exception.toString();
@@ -142,6 +119,7 @@ class DirectVideoRecordingService {
   }
 
   Future<void> save() async {
+    await prepare();
     final path = pendingVideoPath;
     if (path == null) {
       throw StateError(error ?? 'No recorded video is available.');
@@ -149,6 +127,53 @@ class DirectVideoRecordingService {
     if (_saved) return;
     await _galleryChannel.invokeMethod<void>('save', {'path': path});
     _saved = true;
+  }
+
+  Future<String> prepare() async {
+    final rawPath = _rawVideoPath ?? pendingVideoPath;
+    if (rawPath == null) {
+      throw StateError(error ?? 'No recorded video is available.');
+    }
+    if (isPrepared) return pendingVideoPath ?? rawPath;
+    if (!Platform.isAndroid) {
+      pendingVideoPath = rawPath;
+      isPrepared = true;
+      return rawPath;
+    }
+    try {
+      final composedPath = await _channel
+          .invokeMethod<String>('compose', {
+            'inputPath': rawPath,
+            'topic': topic,
+            'day': day,
+            'durationSeconds': durationSeconds,
+            'avatarMode': !cameraService.isEnabled,
+            'avatarCat': avatarStyle.cat,
+            'avatarScarf': avatarStyle.scarf,
+            'avatarBackground': avatarStyle.background,
+            'faceSamples': _faceSamples,
+          })
+          .timeout(
+            const Duration(minutes: 2),
+            onTimeout: () => throw TimeoutException(
+              'Video processing took too long. Please record again.',
+            ),
+          );
+      if (composedPath == null) {
+        throw StateError('Video export returned no file.');
+      }
+      pendingVideoPath = composedPath;
+      isPrepared = true;
+      if (rawPath != composedPath) {
+        try {
+          await File(rawPath).delete();
+        } catch (_) {}
+      }
+      return composedPath;
+    } catch (exception) {
+      error = exception.toString();
+      rethrow;
+    }
   }
 
   Future<void> discard() async {

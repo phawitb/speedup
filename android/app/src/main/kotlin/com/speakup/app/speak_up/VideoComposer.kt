@@ -6,8 +6,8 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.PorterDuff
-import android.graphics.PorterDuffColorFilter
 import android.graphics.Rect
 import android.graphics.RectF
 import android.net.Uri
@@ -89,12 +89,11 @@ private class SpeakUpOverlay(
     private val day = (arguments["day"] as? Number)?.toInt() ?: 1
     private val duration = (arguments["durationSeconds"] as? Number)?.toInt() ?: 60
     private val avatarMode = arguments["avatarMode"] as? Boolean ?: false
+    private val avatarCat = arguments["avatarCat"] as? String ?: "White"
     private val samples = (arguments["faceSamples"] as? List<*>)
         ?.mapNotNull { it as? Map<*, *> }
         .orEmpty()
     private val background = loadBackground(arguments["avatarBackground"] as? String)
-    private val cat = loadCat(arguments["avatarCat"] as? String)
-    private val scarf = load("assets/images/avatar/scarf-neutral.png")
     private val scarfColor = when (arguments["avatarScarf"] as? String) {
         "Berry" -> Color.rgb(185, 75, 120)
         "Orange" -> Color.rgb(242, 106, 46)
@@ -191,46 +190,257 @@ private class SpeakUpOverlay(
         val cy = half + 500f + pitch * 25f
         canvas.save()
         canvas.rotate(roll * 7f, cx, cy)
-        val catRect = RectF(cx - size / 2, cy - size / 2, cx + size / 2, cy + size / 2)
-        cat?.let { canvas.drawBitmap(it, null, catRect, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)) }
-        scarf?.let {
-            val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
-                colorFilter = PorterDuffColorFilter(scarfColor, PorterDuff.Mode.MULTIPLY)
-            }
-            canvas.drawBitmap(it, null, catRect.apply { offset(0f, size * .38f) }, paint)
-        }
-        drawFaceDetail(canvas, cx, cy, size, leftEye, rightEye, mouth, smile)
+        canvas.translate(cx - size / 2f, cy - size / 2f)
+        drawStateCat(canvas, size, leftEye, rightEye, mouth, smile, pitch)
         canvas.restore()
     }
 
-    private fun drawFaceDetail(
+    private fun drawStateCat(
         canvas: Canvas,
-        cx: Float,
-        cy: Float,
-        size: Float,
+        unit: Float,
         leftEye: Float,
         rightEye: Float,
         mouth: Float,
         smile: Float,
+        pitch: Float,
     ) {
-        val coat = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(245, 238, 225, 205) }
-        fun eyelid(x: Float, openness: Float) {
-            if (openness > .92f) return
-            val h = size * .10f * (1f - openness)
-            canvas.drawOval(RectF(x - size * .075f, cy - size * .08f, x + size * .075f, cy - size * .08f + h), coat)
+        val coat = coatColor(avatarCat)
+        val outline = if (avatarCat == "Black" || avatarCat == "Tuxedo") Color.rgb(10, 9, 9) else Color.rgb(35, 30, 27)
+        val body = RectF(unit * .20f, unit * .31f, unit * .80f, unit * .76f)
+        val shadow = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(26, 0, 0, 0)
+            maskFilter = android.graphics.BlurMaskFilter(10f, android.graphics.BlurMaskFilter.Blur.NORMAL)
         }
-        eyelid(cx - size * .115f, leftEye)
-        eyelid(cx + size * .115f, rightEye)
-        val mouthPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(74, 31, 37) }
-        canvas.drawOval(
-            RectF(
-                cx - size * (.025f + smile * .012f),
-                cy + size * .12f,
-                cx + size * (.025f + smile * .012f),
-                cy + size * (.128f + mouth * .045f),
-            ),
-            mouthPaint,
-        )
+        canvas.drawRoundRect(RectF(body).apply { offset(unit * .016f, unit * .020f) }, unit * .045f, unit * .045f, shadow)
+        drawTail(canvas, unit, coat, outline)
+        val fill = Paint().apply { color = coat }
+        val leftEar = Path().apply {
+            moveTo(unit * .23f, unit * .34f)
+            lineTo(unit * .28f, unit * .17f)
+            quadTo(unit * .33f, unit * .18f, unit * .38f, unit * .34f)
+            close()
+        }
+        val rightEar = Path().apply {
+            moveTo(unit * .62f, unit * .34f)
+            quadTo(unit * .67f, unit * .18f, unit * .72f, unit * .17f)
+            lineTo(unit * .77f, unit * .34f)
+            close()
+        }
+        canvas.drawPath(leftEar, fill)
+        canvas.drawPath(rightEar, fill)
+        canvas.drawRoundRect(body, unit * .045f, unit * .045f, fill)
+        drawCoatPatch(canvas, unit, coat)
+        drawEarInner(canvas, unit)
+        drawLegs(canvas, unit, coat, outline)
+        val stroke = Paint().apply {
+            color = outline
+            style = Paint.Style.STROKE
+            strokeWidth = unit * .014f
+            strokeJoin = Paint.Join.ROUND
+        }
+        canvas.drawPath(leftEar, stroke)
+        canvas.drawPath(rightEar, stroke)
+        canvas.drawRoundRect(body, unit * .045f, unit * .045f, stroke)
+        drawFace(canvas, unit, outline, leftEye, rightEye, mouth, smile, pitch)
+        drawScarf(canvas, unit, outline)
+    }
+
+    private fun drawCoatPatch(canvas: Canvas, unit: Float, coat: Int) {
+        val patch = Path().apply {
+            moveTo(unit * .27f, unit * .31f)
+            quadTo(unit * .37f, unit * .34f, unit * .43f, unit * .45f)
+            quadTo(unit * .50f, unit * .58f, unit * .57f, unit * .45f)
+            quadTo(unit * .63f, unit * .34f, unit * .73f, unit * .31f)
+            lineTo(unit * .27f, unit * .31f)
+            close()
+        }
+        when (avatarCat) {
+            "Calico" -> {
+                canvas.drawPath(patch, Paint().apply { color = Color.rgb(255, 248, 232) })
+                canvas.drawPath(Path().apply {
+                    moveTo(unit * .20f, unit * .31f)
+                    lineTo(unit * .40f, unit * .31f)
+                    quadTo(unit * .35f, unit * .47f, unit * .23f, unit * .53f)
+                    lineTo(unit * .20f, unit * .53f)
+                    close()
+                }, Paint().apply { color = Color.rgb(231, 140, 37) })
+                canvas.drawPath(Path().apply {
+                    moveTo(unit * .60f, unit * .31f)
+                    lineTo(unit * .80f, unit * .31f)
+                    lineTo(unit * .80f, unit * .57f)
+                    quadTo(unit * .68f, unit * .48f, unit * .60f, unit * .31f)
+                    close()
+                }, Paint().apply { color = Color.rgb(42, 39, 37) })
+            }
+            "Tuxedo" -> canvas.drawPath(Path().apply {
+                moveTo(unit * .36f, unit * .31f)
+                quadTo(unit * .43f, unit * .39f, unit * .50f, unit * .53f)
+                quadTo(unit * .57f, unit * .39f, unit * .64f, unit * .31f)
+                lineTo(unit * .64f, unit * .72f)
+                lineTo(unit * .36f, unit * .72f)
+                close()
+            }, Paint().apply { color = Color.rgb(255, 250, 234) })
+            "Black" -> Unit
+            else -> canvas.drawPath(patch, Paint().apply { color = blend(coat, Color.BLACK, .16f, .55f) })
+        }
+    }
+
+    private fun drawEarInner(canvas: Canvas, unit: Float) {
+        val paint = Paint().apply { color = Color.rgb(255, 231, 223) }
+        canvas.drawPath(Path().apply {
+            moveTo(unit * .275f, unit * .31f)
+            lineTo(unit * .30f, unit * .225f)
+            lineTo(unit * .345f, unit * .31f)
+            close()
+        }, paint)
+        canvas.drawPath(Path().apply {
+            moveTo(unit * .655f, unit * .31f)
+            lineTo(unit * .70f, unit * .225f)
+            lineTo(unit * .725f, unit * .31f)
+            close()
+        }, paint)
+    }
+
+    private fun drawTail(canvas: Canvas, unit: Float, coat: Int, outline: Int) {
+        val path = Path().apply {
+            moveTo(unit * .79f, unit * .61f)
+            cubicTo(unit * .93f, unit * .62f, unit * .92f, unit * .50f, unit * .90f, unit * .49f)
+        }
+        canvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = outline
+            style = Paint.Style.STROKE
+            strokeWidth = unit * .065f
+            strokeCap = Paint.Cap.ROUND
+        })
+        canvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = coat
+            style = Paint.Style.STROKE
+            strokeWidth = unit * .045f
+            strokeCap = Paint.Cap.ROUND
+        })
+    }
+
+    private fun drawLegs(canvas: Canvas, unit: Float, coat: Int, outline: Int) {
+        for (x in listOf(.30f, .70f)) {
+            val foot = RectF(unit * x - unit * .035f, unit * .742f, unit * x + unit * .035f, unit * .787f)
+            canvas.drawRoundRect(foot, unit * .014f, unit * .014f, Paint().apply { color = coat })
+            canvas.drawRoundRect(foot, unit * .014f, unit * .014f, Paint().apply {
+                color = outline
+                style = Paint.Style.STROKE
+                strokeWidth = unit * .012f
+            })
+        }
+    }
+
+    private fun drawFace(
+        canvas: Canvas,
+        unit: Float,
+        outline: Int,
+        leftEye: Float,
+        rightEye: Float,
+        mouth: Float,
+        smile: Float,
+        pitch: Float,
+    ) {
+        val blink = max(1f - leftEye, 1f - rightEye).coerceIn(0f, 1f)
+        val tired = pitch > .32f
+        val eyeColor = when (avatarCat) {
+            "Black" -> Color.rgb(255, 227, 110)
+            "Tuxedo" -> Color.rgb(16, 16, 16)
+            else -> Color.rgb(23, 23, 23)
+        }
+        drawEye(canvas, unit, unit * .39f, unit * .485f, blink, tired, eyeColor)
+        drawEye(canvas, unit, unit * .61f, unit * .485f, blink, tired, eyeColor)
+        val faceLine = if (avatarCat == "Black") Color.rgb(255, 243, 209) else outline
+        val line = Paint().apply {
+            color = faceLine
+            strokeWidth = unit * .014f
+            strokeCap = Paint.Cap.ROUND
+        }
+        canvas.drawLine(unit * .30f, unit * .53f, unit * .24f, unit * .525f, line)
+        canvas.drawLine(unit * .30f, unit * .56f, unit * .24f, unit * .565f, line)
+        canvas.drawLine(unit * .70f, unit * .53f, unit * .76f, unit * .525f, line)
+        canvas.drawLine(unit * .70f, unit * .56f, unit * .76f, unit * .565f, line)
+        canvas.drawCircle(unit * .50f, unit * .555f, unit * .010f, Paint().apply { color = faceLine })
+        drawMouth(canvas, unit, faceLine, mouth, smile)
+    }
+
+    private fun drawEye(canvas: Canvas, unit: Float, x: Float, y: Float, blink: Float, tired: Boolean, eyeColor: Int) {
+        if (blink > .72f || tired) {
+            canvas.drawLine(x - unit * .030f, y, x + unit * .030f, y - if (tired) unit * .008f else 0f, Paint().apply {
+                color = eyeColor
+                strokeWidth = unit * .014f
+                strokeCap = Paint.Cap.ROUND
+            })
+            return
+        }
+        val h = unit * .080f * (1f - blink * .55f)
+        val rect = RectF(x - unit * .0215f, y - h / 2f, x + unit * .0215f, y + h / 2f)
+        canvas.drawRoundRect(rect, unit * .010f, unit * .010f, Paint().apply { color = eyeColor })
+        canvas.drawCircle(x - unit * .007f, rect.top + unit * .017f, unit * .006f, Paint().apply { color = Color.WHITE })
+    }
+
+    private fun drawMouth(canvas: Canvas, unit: Float, outline: Int, mouth: Float, smile: Float) {
+        if (smile > .72f && mouth < .32f) {
+            canvas.drawArc(RectF(unit * .455f, unit * .530f, unit * .545f, unit * .600f), 0f, 180f, false, Paint().apply {
+                color = outline
+                style = Paint.Style.STROKE
+                strokeWidth = unit * .012f
+                strokeCap = Paint.Cap.ROUND
+            })
+            return
+        }
+        if (mouth < .18f) {
+            val path = Path().apply {
+                moveTo(unit * .475f, unit * .575f)
+                quadTo(unit * .50f, unit * .588f, unit * .525f, unit * .575f)
+            }
+            canvas.drawPath(path, Paint().apply {
+                color = outline
+                style = Paint.Style.STROKE
+                strokeWidth = unit * .010f
+                strokeCap = Paint.Cap.ROUND
+            })
+            return
+        }
+        val scale = if (mouth < .38f) Pair(.055f, .052f) else if (mouth < .68f) Pair(.095f, .090f) else Pair(.135f, .145f)
+        val rect = RectF(unit * .50f - unit * scale.first / 2f, unit * .585f - unit * scale.second / 2f, unit * .50f + unit * scale.first / 2f, unit * .585f + unit * scale.second / 2f)
+        canvas.drawRoundRect(rect, unit * .008f, unit * .008f, Paint().apply { color = outline })
+        rect.inset(unit * .008f, unit * .008f)
+        canvas.drawRoundRect(rect, unit * .006f, unit * .006f, Paint().apply { color = Color.rgb(240, 154, 156) })
+    }
+
+    private fun drawScarf(canvas: Canvas, unit: Float, outline: Int) {
+        val neck = RectF(unit * .28f, unit * .735f, unit * .72f, unit * .795f)
+        canvas.drawRoundRect(neck, unit * .014f, unit * .014f, Paint().apply { color = scarfColor })
+        val tail = Path().apply {
+            moveTo(unit * .49f, unit * .785f)
+            lineTo(unit * .59f, unit * .895f)
+            quadTo(unit * .54f, unit * .915f, unit * .47f, unit * .795f)
+            close()
+        }
+        canvas.drawPath(tail, Paint().apply { color = blend(scarfColor, Color.BLACK, .12f) })
+        canvas.drawRoundRect(neck, unit * .014f, unit * .014f, Paint().apply {
+            color = outline
+            style = Paint.Style.STROKE
+            strokeWidth = unit * .010f
+        })
+        canvas.drawLine(unit * .32f, unit * .765f, unit * .68f, unit * .765f, Paint().apply {
+            color = Color.argb(72, 255, 255, 255)
+            strokeWidth = unit * .010f
+            strokeCap = Paint.Cap.ROUND
+        })
+    }
+
+    private fun coatColor(name: String) = when (name) {
+        "Ginger" -> Color.rgb(231, 140, 37)
+        "Gray" -> Color.rgb(146, 144, 143)
+        "Black" -> Color.rgb(28, 27, 30)
+        "Siamese" -> Color.rgb(118, 81, 60)
+        "Tuxedo" -> Color.rgb(24, 24, 26)
+        "Calico" -> Color.rgb(240, 227, 205)
+        "Brown Tabby" -> Color.rgb(168, 109, 49)
+        else -> Color.rgb(244, 235, 217)
     }
 
     private fun sampleAt(timeMs: Long): Map<*, *>? {
@@ -270,19 +480,6 @@ private class SpeakUpOverlay(
         }
     }
 
-    private fun loadCat(name: String?): Bitmap? = load(
-        when (name) {
-            "Ginger" -> "assets/images/avatar/cat-ginger.png"
-            "Gray" -> "assets/images/avatar/cat-gray.png"
-            "Black" -> "assets/images/avatar/cat-black.png"
-            "Siamese" -> "assets/images/avatar/cat-siamese.png"
-            "Tuxedo" -> "assets/images/avatar/cat-tuxedo.png"
-            "Calico" -> "assets/images/avatar/cat-calico-final.png"
-            "Brown Tabby" -> "assets/images/avatar/cat-brown-tabby.png"
-            else -> "assets/images/avatar/cat-base.png"
-        },
-    )
-
     private fun loadBackground(name: String?): Bitmap? = when (name) {
         "Cozy Room" -> load("assets/images/backgrounds/cozy-room.png")
         "Café" -> load("assets/images/backgrounds/cafe.png")
@@ -295,6 +492,16 @@ private class SpeakUpOverlay(
     private fun load(path: String): Bitmap? = runCatching {
         context.assets.open("flutter_assets/$path").use(BitmapFactory::decodeStream)
     }.getOrNull()
+
+    private fun blend(from: Int, to: Int, amount: Float, alpha: Float = 1f): Int {
+        val inverse = 1f - amount
+        return Color.argb(
+            (255 * alpha).roundToInt().coerceIn(0, 255),
+            (Color.red(from) * inverse + Color.red(to) * amount).roundToInt(),
+            (Color.green(from) * inverse + Color.green(to) * amount).roundToInt(),
+            (Color.blue(from) * inverse + Color.blue(to) * amount).roundToInt(),
+        )
+    }
 
     private fun drawCover(canvas: Canvas, source: Bitmap, destination: Rect) {
         val sourceRatio = source.width.toFloat() / source.height

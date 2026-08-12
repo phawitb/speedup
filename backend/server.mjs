@@ -71,10 +71,11 @@ For each sentence, set correction and note to null when it is already natural. C
 word-choice, or clarity problems. The revised version must preserve every central idea, add no facts, remain
 close in length, remove fillers, improve transitions, and sound natural when spoken.
 
-Use this fixed scoring rubric: Grammar 20%, Vocabulary 15%, Fluency 20%, Structure 15%, Content/topic relevance
-20%, Pronunciation 10%. Pronunciation is an estimate based only on supplied delivery metrics; explicitly avoid
-claiming knowledge that the metrics do not support. Keep feedback concise. repeatedWords should include fillers
-or conspicuously repeated content words, not normal function words.`;
+Use this fixed scoring rubric to decide the overallScore: Grammar 20%, Vocabulary 15%, Fluency 20%, Structure 15%,
+Content/topic relevance 20%, Pronunciation 10%. Every value in categoryScores must still be a 0-100 score for that
+category, not weighted points. Pronunciation is an estimate based only on supplied delivery metrics; explicitly avoid
+claiming knowledge that the metrics do not support. Keep feedback concise. repeatedWords should include fillers or
+conspicuously repeated content words, not normal function words.`;
 
 function json(res, status, value) {
   const body = JSON.stringify(value);

@@ -21,19 +21,6 @@ class RecordScreen extends StatefulWidget {
 }
 
 class _RecordScreenState extends State<RecordScreen> {
-  Future<void> _openEffects() async {
-    final filter = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => FilterSheet(selected: widget.controller.settings.filter),
-    );
-    if (filter != null) {
-      await widget.controller.updateSettings(
-        widget.controller.settings.copyWith(filter: filter),
-      );
-    }
-  }
-
   Future<void> _openAvatarCustomizer() async {
     final style = await showModalBottomSheet<AvatarStyle>(
       context: context,
@@ -210,7 +197,6 @@ class _RecordScreenState extends State<RecordScreen> {
                         Positioned.fill(
                           child: CoachPreview(
                             cameraService: widget.cameraService,
-                            filter: controller.settings.filter,
                             avatarStyle: controller.avatarStyle,
                           ),
                         ),
@@ -222,14 +208,10 @@ class _RecordScreenState extends State<RecordScreen> {
                             children: [
                               _RoundAction(
                                 icon: widget.cameraService.isEnabled
-                                    ? Icons.face_retouching_natural
+                                    ? Icons.palette_outlined
                                     : Icons.palette_outlined,
-                                label: widget.cameraService.isEnabled
-                                    ? 'Effects'
-                                    : 'Customize',
-                                onTap: widget.cameraService.isEnabled
-                                    ? _openEffects
-                                    : _openAvatarCustomizer,
+                                label: 'Customize',
+                                onTap: _openAvatarCustomizer,
                               ),
                               const SizedBox(width: 18),
                               Expanded(
@@ -433,13 +415,6 @@ class _SettingsSheetState extends State<SettingsSheet> {
                 ),
               ),
             ),
-            _title('Filters & Effects'),
-            ChoiceChipRow(
-              values: const ['None', 'Funny', 'Glasses', 'Hat', 'Cat'],
-              selected: value.filter,
-              onSelected: (v) =>
-                  setState(() => value = value.copyWith(filter: v)),
-            ),
             const SizedBox(height: 18),
             PurpleButton(
               label: 'Done',
@@ -464,56 +439,4 @@ class _SettingsSheetState extends State<SettingsSheet> {
     90: '1.5 min',
     120: '2 min',
   }[d]!;
-}
-
-class FilterSheet extends StatelessWidget {
-  const FilterSheet({super.key, required this.selected});
-  final String selected;
-  @override
-  Widget build(BuildContext context) => BottomSheetShell(
-    title: 'Filters & Effects',
-    child: SizedBox(
-      height: 114,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: ['None', 'Funny', 'Glasses', 'Hat', 'Cat']
-            .map(
-              (name) => GestureDetector(
-                onTap: () => Navigator.pop(context, name),
-                child: Container(
-                  width: 69,
-                  margin: const EdgeInsets.only(right: 8),
-                  decoration: BoxDecoration(
-                    color: selected == name ? purpleSoft : Colors.white54,
-                    border: Border.all(
-                      color: selected == name
-                          ? purple
-                          : const Color(0xFFD9D0C3),
-                    ),
-                    borderRadius: BorderRadius.circular(13),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        const {
-                          'None': '⊘',
-                          'Funny': '🤓',
-                          'Glasses': '👓',
-                          'Hat': '🧢',
-                          'Cat': '🐱',
-                        }[name]!,
-                        style: const TextStyle(fontSize: 35),
-                      ),
-                      const SizedBox(height: 5),
-                      Text(name, style: const TextStyle(fontSize: 10)),
-                    ],
-                  ),
-                ),
-              ),
-            )
-            .toList(),
-      ),
-    ),
-  );
 }

@@ -27,7 +27,7 @@ void main() {
     expect(find.text('START'), findsOneWidget);
     expect(find.text('Day 1 🔥'), findsOneWidget);
     expect(find.textContaining('If you could live'), findsOneWidget);
-    expect(find.text('Effects'), findsOneWidget);
+    expect(find.text('Customize'), findsOneWidget);
     expect(find.byIcon(Icons.casino_outlined), findsOneWidget);
     expect(find.text('Camera'), findsOneWidget);
   });
@@ -103,10 +103,13 @@ void main() {
   });
 
   test('settings copyWith preserves untouched values', () {
-    const settings = PracticeSettings(durationSeconds: 60, filter: 'None');
-    final changed = settings.copyWith(filter: 'Hat');
-    expect(changed.durationSeconds, 60);
-    expect(changed.filter, 'Hat');
+    const settings = PracticeSettings(
+      durationSeconds: 60,
+      topicCategory: 'General',
+    );
+    final changed = settings.copyWith(durationSeconds: 90);
+    expect(changed.durationSeconds, 90);
+    expect(changed.topicCategory, 'General');
   });
 
   testWidgets(
@@ -121,6 +124,7 @@ void main() {
       SharedPreferences.setMockInitialValues({'duration': 30});
       final controller = await AppController.load();
       final camera = CameraService.disabled();
+      addTearDown(camera.dispose);
       await tester.pumpWidget(
         MaterialApp(
           theme: buildSpeakUpTheme(),
@@ -146,6 +150,7 @@ void main() {
       expect(find.text('Retry Camera'), findsOneWidget);
       expect(find.text('00:30'), findsOneWidget);
       expect(tester.takeException(), isNull);
+      await camera.pause();
     },
   );
 

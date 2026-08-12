@@ -97,7 +97,7 @@ class _RecordingScreenState extends State<RecordingScreen>
     timer?.cancel();
     setState(() {
       finishing = true;
-      preparingVideo = true;
+      preparingVideo = false;
       finishError = null;
     });
     try {
@@ -112,7 +112,6 @@ class _RecordingScreenState extends State<RecordingScreen>
       return;
     }
     if (!mounted) return;
-    setState(() => preparingVideo = false);
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -232,7 +231,6 @@ class _RecordingScreenState extends State<RecordingScreen>
                           Positioned.fill(
                             child: CoachPreview(
                               cameraService: widget.cameraService,
-                              filter: widget.controller.settings.filter,
                               recording: true,
                               avatarStyle: widget.controller.avatarStyle,
                             ),
@@ -394,66 +392,69 @@ class _PreparingVideoOverlayState extends State<_PreparingVideoOverlay>
 
   @override
   Widget build(BuildContext context) => ColoredBox(
-    color: ink.withValues(alpha: .88),
+    color: ink.withValues(alpha: .84),
     child: SafeArea(
       child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AnimatedBuilder(
-              animation: controller,
-              builder: (context, child) => Transform.rotate(
-                angle: controller.value * math.pi * 2,
-                child: child,
+        child: Container(
+          width: 286,
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 22),
+          decoration: BoxDecoration(
+            color: paper,
+            border: Border.all(color: ink, width: 2),
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black38,
+                blurRadius: 26,
+                offset: Offset(0, 10),
               ),
-              child: Container(
-                width: 92,
-                height: 92,
-                decoration: BoxDecoration(
-                  color: paper,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: yellow, width: 5),
-                  boxShadow: const [
-                    BoxShadow(color: yellow, blurRadius: 22, spreadRadius: 2),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.movie_creation_outlined,
-                  color: purple,
-                  size: 43,
-                ),
-              ),
-            ),
-            const SizedBox(height: 28),
-            const Text(
-              'Preparing your video…',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 9),
-            const Text(
-              'Adding your topic, timer, and avatar.\nPlease keep SpeakUp open.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white70, fontSize: 14),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: 210,
-              child: AnimatedBuilder(
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedBuilder(
                 animation: controller,
-                builder: (context, _) => LinearProgressIndicator(
-                  value: .12 + controller.value * .76,
-                  minHeight: 8,
-                  borderRadius: BorderRadius.circular(8),
-                  backgroundColor: Colors.white24,
-                  color: yellow,
+                builder: (context, _) {
+                  final bob = math.sin(controller.value * math.pi * 2) * 6;
+                  return Transform.translate(
+                    offset: Offset(0, bob),
+                    child: Icon(
+                      Icons.movie_filter_rounded,
+                      color: Color.lerp(purple, yellowDeep, controller.value),
+                      size: 56,
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 14),
+              const Text(
+                'Preparing video',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Building your final clip with the timer, topic, and avatar.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: inkSoft),
+              ),
+              const SizedBox(height: 20),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(99),
+                child: SizedBox(
+                  height: 12,
+                  child: AnimatedBuilder(
+                    animation: controller,
+                    builder: (context, _) => LinearProgressIndicator(
+                      value: .18 + controller.value * .70,
+                      backgroundColor: const Color(0xFFE9E3D4),
+                      color: Color.lerp(yellow, green, controller.value),
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     ),
@@ -754,6 +755,7 @@ class _CompletionSheetState extends State<CompletionSheet>
     with SingleTickerProviderStateMixin {
   bool saving = false;
   bool saved = false;
+  bool preparing = false;
   bool videoDecisionMade = false;
   late final AnimationController celebrationController;
 
@@ -775,12 +777,16 @@ class _CompletionSheetState extends State<CompletionSheet>
 
   Future<void> _save() async {
     if (saving || saved) return;
-    setState(() => saving = true);
+    setState(() {
+      saving = true;
+      preparing = true;
+    });
     try {
       await widget.videoRecording.save();
       if (!mounted) return;
       setState(() {
         saving = false;
+        preparing = false;
         saved = true;
         videoDecisionMade = true;
       });
@@ -789,7 +795,10 @@ class _CompletionSheetState extends State<CompletionSheet>
       ).showSnackBar(const SnackBar(content: Text('Video saved to Photos')));
     } catch (error) {
       if (!mounted) return;
-      setState(() => saving = false);
+      setState(() {
+        saving = false;
+        preparing = false;
+      });
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Could not save video: $error')));
@@ -798,7 +807,21 @@ class _CompletionSheetState extends State<CompletionSheet>
 
   Future<void> _skipSave() async {
     if (saving) return;
-    setState(() => videoDecisionMade = true);
+    setState(() => preparing = true);
+    try {
+      await widget.videoRecording.prepare();
+      if (!mounted) return;
+      setState(() {
+        preparing = false;
+        videoDecisionMade = true;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => preparing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not prepare video: $error')),
+      );
+    }
   }
 
   @override
@@ -934,7 +957,83 @@ class _CompletionSheetState extends State<CompletionSheet>
               ),
             ),
           ),
+        if (preparing) const Positioned.fill(child: _SheetPreparingOverlay()),
       ],
+    ),
+  );
+}
+
+class _SheetPreparingOverlay extends StatefulWidget {
+  const _SheetPreparingOverlay();
+
+  @override
+  State<_SheetPreparingOverlay> createState() => _SheetPreparingOverlayState();
+}
+
+class _SheetPreparingOverlayState extends State<_SheetPreparingOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1300),
+  )..repeat();
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: paper.withValues(alpha: .94),
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+    ),
+    child: Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedBuilder(
+              animation: controller,
+              builder: (context, _) => Transform.scale(
+                scale: .94 + controller.value * .08,
+                child: const Icon(
+                  Icons.video_settings_rounded,
+                  size: 54,
+                  color: purple,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Preparing video',
+              style: TextStyle(fontSize: 23, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Almost ready. Please keep the app open.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: inkSoft, fontSize: 14),
+            ),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: 220,
+              child: AnimatedBuilder(
+                animation: controller,
+                builder: (context, _) => LinearProgressIndicator(
+                  value: .15 + controller.value * .78,
+                  minHeight: 10,
+                  borderRadius: BorderRadius.circular(12),
+                  backgroundColor: const Color(0xFFE9E3D4),
+                  color: Color.lerp(yellow, green, controller.value),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     ),
   );
 }

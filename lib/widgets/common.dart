@@ -13,12 +13,10 @@ class CoachPreview extends StatelessWidget {
   const CoachPreview({
     super.key,
     required this.cameraService,
-    this.filter = 'None',
     this.recording = false,
     this.avatarStyle = const AvatarStyle(),
   });
   final CameraService cameraService;
-  final String filter;
   final bool recording;
   final AvatarStyle avatarStyle;
 
@@ -73,11 +71,6 @@ class CoachPreview extends StatelessWidget {
             if (recording)
               const DecoratedBox(
                 decoration: BoxDecoration(color: Color(0x11000000)),
-              ),
-            if (cameraService.isEnabled && filter != 'None')
-              _FaceMappedEffect(
-                tracking: cameraService.faceTracking,
-                filter: filter,
               ),
           ],
         ),
@@ -312,12 +305,10 @@ class _SimpleCatAvatarPainter extends CustomPainter {
       'Brown Tabby': Color(0xFFA86D31),
     };
     final coat = coats[style.cat] ?? coats['White']!;
-    final patch = Color.lerp(
-      coat,
-      Colors.black,
-      style.cat == 'White' ? .18 : .10,
-    )!;
-    final outline = Color.lerp(ink, coat, .08)!;
+    final patch = Color.lerp(coat, Colors.black, .16)!;
+    final outline = style.cat == 'Black' || style.cat == 'Tuxedo'
+        ? const Color(0xFF0A0909)
+        : Color.lerp(ink, coat, .08)!;
     final unit = size.shortestSide;
     final body = RRect.fromRectAndRadius(
       Rect.fromLTWH(unit * .20, unit * .31, unit * .60, unit * .45),
@@ -340,6 +331,7 @@ class _SimpleCatAvatarPainter extends CustomPainter {
       ..color = Colors.black.withValues(alpha: .10)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
     canvas.drawRRect(body.shift(Offset(unit * .016, unit * .020)), shadow);
+    _drawTail(canvas, unit, coat, outline);
     paint.color = coat;
     canvas.drawPath(leftEar, paint);
     canvas.drawPath(rightEar, paint);
@@ -347,7 +339,6 @@ class _SimpleCatAvatarPainter extends CustomPainter {
 
     _drawPatch(canvas, unit, patch, coat);
     _drawEarInner(canvas, unit);
-    _drawTail(canvas, unit, coat, outline);
     _drawLegs(canvas, unit, coat, outline);
     _drawOutline(canvas, body, leftEar, rightEar, outline, unit);
     _drawFace(canvas, unit, outline);
@@ -363,20 +354,47 @@ class _SimpleCatAvatarPainter extends CustomPainter {
       ..lineTo(unit * .73, unit * .31)
       ..lineTo(unit * .27, unit * .31)
       ..close();
-    canvas.drawPath(path, Paint()..color = patch.withValues(alpha: .55));
-    if (style.cat == 'Tuxedo') {
+    if (style.cat == 'Calico') {
+      canvas.drawPath(path, Paint()..color = const Color(0xFFFFF8E8));
       canvas.drawPath(
         Path()
           ..moveTo(unit * .20, unit * .31)
-          ..lineTo(unit * .42, unit * .31)
-          ..lineTo(unit * .50, unit * .48)
-          ..lineTo(unit * .58, unit * .31)
-          ..lineTo(unit * .80, unit * .31)
-          ..lineTo(unit * .80, unit * .76)
-          ..lineTo(unit * .20, unit * .76)
+          ..lineTo(unit * .40, unit * .31)
+          ..quadraticBezierTo(unit * .35, unit * .47, unit * .23, unit * .53)
+          ..lineTo(unit * .20, unit * .53)
           ..close(),
-        Paint()..color = coat,
+        Paint()..color = const Color(0xFFE78C25),
       );
+      canvas.drawPath(
+        Path()
+          ..moveTo(unit * .60, unit * .31)
+          ..lineTo(unit * .80, unit * .31)
+          ..lineTo(unit * .80, unit * .57)
+          ..quadraticBezierTo(unit * .68, unit * .48, unit * .60, unit * .31)
+          ..close(),
+        Paint()..color = const Color(0xFF2A2725),
+      );
+      canvas.drawPath(
+        Path()
+          ..moveTo(unit * .43, unit * .31)
+          ..quadraticBezierTo(unit * .50, unit * .41, unit * .50, unit * .55)
+          ..quadraticBezierTo(unit * .43, unit * .45, unit * .37, unit * .31)
+          ..close(),
+        Paint()..color = const Color(0xFFFFFBEC),
+      );
+    } else if (style.cat == 'Tuxedo') {
+      canvas.drawPath(
+        Path()
+          ..moveTo(unit * .36, unit * .31)
+          ..quadraticBezierTo(unit * .43, unit * .39, unit * .50, unit * .53)
+          ..quadraticBezierTo(unit * .57, unit * .39, unit * .64, unit * .31)
+          ..lineTo(unit * .64, unit * .72)
+          ..lineTo(unit * .36, unit * .72)
+          ..close(),
+        Paint()..color = const Color(0xFFFFFAEA),
+      );
+    } else if (style.cat != 'Black') {
+      canvas.drawPath(path, Paint()..color = patch.withValues(alpha: .55));
     }
   }
 
@@ -470,12 +488,17 @@ class _SimpleCatAvatarPainter extends CustomPainter {
     final tired = face.pitch > .32;
     final leftEye = Offset(unit * .39, unit * .485);
     final rightEye = Offset(unit * .61, unit * .485);
-    _drawEye(canvas, unit, leftEye, blinkAmount, tired);
-    _drawEye(canvas, unit, rightEye, blinkAmount, tired);
+    final eyeColor = style.cat == 'Black'
+        ? const Color(0xFFFFE36E)
+        : style.cat == 'Tuxedo'
+        ? const Color(0xFF101010)
+        : ink;
+    _drawEye(canvas, unit, leftEye, blinkAmount, tired, eyeColor);
+    _drawEye(canvas, unit, rightEye, blinkAmount, tired, eyeColor);
 
     final line = Paint()
-      ..color = outline
-      ..strokeWidth = unit * .012
+      ..color = style.cat == 'Black' ? const Color(0xFFFFF3D1) : outline
+      ..strokeWidth = unit * .014
       ..strokeCap = StrokeCap.round;
     canvas.drawLine(
       Offset(unit * .30, unit * .53),
@@ -501,9 +524,13 @@ class _SimpleCatAvatarPainter extends CustomPainter {
     canvas.drawCircle(
       Offset(unit * .50, unit * .555),
       unit * .010,
-      Paint()..color = outline,
+      Paint()..color = style.cat == 'Black' ? const Color(0xFFFFF3D1) : outline,
     );
-    _drawMouth(canvas, unit, outline);
+    _drawMouth(
+      canvas,
+      unit,
+      style.cat == 'Black' ? const Color(0xFFFFF3D1) : outline,
+    );
   }
 
   void _drawEye(
@@ -512,6 +539,7 @@ class _SimpleCatAvatarPainter extends CustomPainter {
     Offset center,
     double blinkAmount,
     bool tired,
+    Color eyeColor,
   ) {
     final blink = blinkAmount.clamp(0.0, 1.0);
     if (blink > .72 || tired) {
@@ -520,7 +548,7 @@ class _SimpleCatAvatarPainter extends CustomPainter {
         Offset(center.dx - unit * .030, y),
         Offset(center.dx + unit * .030, y - (tired ? unit * .008 : 0)),
         Paint()
-          ..color = ink
+          ..color = eyeColor
           ..strokeWidth = unit * .014
           ..strokeCap = StrokeCap.round,
       );
@@ -533,7 +561,7 @@ class _SimpleCatAvatarPainter extends CustomPainter {
     );
     canvas.drawRRect(
       RRect.fromRectAndRadius(eyeRect, Radius.circular(unit * .010)),
-      Paint()..color = ink,
+      Paint()..color = eyeColor,
     );
     canvas.drawCircle(
       Offset(center.dx - unit * .007, eyeRect.top + unit * .017),
@@ -650,186 +678,6 @@ class _SimpleCatAvatarPainter extends CustomPainter {
       oldDelegate.face != face ||
       oldDelegate.style != style ||
       oldDelegate.autoBlink != autoBlink;
-}
-
-class _FaceMappedEffect extends StatelessWidget {
-  const _FaceMappedEffect({required this.tracking, required this.filter});
-
-  final FaceTrackingService tracking;
-  final String filter;
-
-  @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-    animation: tracking,
-    builder: (context, _) {
-      final face = tracking.state;
-      if (!face.faceDetected) return const SizedBox.shrink();
-      return LayoutBuilder(
-        builder: (context, constraints) {
-          final x = face.faceCenterX * constraints.maxWidth;
-          final y = face.faceCenterY * constraints.maxHeight;
-          final w = face.faceWidth * constraints.maxWidth;
-          final h = face.faceHeight * constraints.maxHeight;
-          return CustomPaint(
-            painter: _FaceEffectPainter(
-              filter: filter,
-              center: Offset(x, y),
-              faceSize: Size(w, h),
-              roll: face.roll,
-              smile: face.smile,
-            ),
-            size: Size.infinite,
-          );
-        },
-      );
-    },
-  );
-}
-
-class _FaceEffectPainter extends CustomPainter {
-  const _FaceEffectPainter({
-    required this.filter,
-    required this.center,
-    required this.faceSize,
-    required this.roll,
-    required this.smile,
-  });
-
-  final String filter;
-  final Offset center;
-  final Size faceSize;
-  final double roll;
-  final double smile;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    canvas.save();
-    canvas.translate(center.dx, center.dy);
-    canvas.rotate(roll * .2);
-    final paint = Paint()..isAntiAlias = true;
-    final width = faceSize.width.clamp(70.0, size.width * .82);
-    if (filter == 'Glasses' || filter == 'Funny') {
-      _glasses(canvas, width, filter == 'Funny');
-    } else if (filter == 'Hat') {
-      _hat(canvas, width);
-    } else if (filter == 'Cat') {
-      _catEars(canvas, width);
-    }
-    canvas.restore();
-    paint.color = Colors.white.withValues(alpha: .72);
-    canvas.drawCircle(
-      Offset(center.dx - width * .52, center.dy - faceSize.height * .42),
-      4,
-      paint,
-    );
-    canvas.drawCircle(
-      Offset(center.dx + width * .46, center.dy - faceSize.height * .23),
-      3,
-      paint,
-    );
-  }
-
-  void _glasses(Canvas canvas, double width, bool funny) {
-    final stroke = Paint()
-      ..color = funny ? const Color(0xFFFFD84D) : Colors.black
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = width * .055
-      ..strokeCap = StrokeCap.round;
-    final y = -width * .04;
-    final left = Rect.fromCenter(
-      center: Offset(-width * .18, y),
-      width: width * .27,
-      height: width * .20,
-    );
-    final right = Rect.fromCenter(
-      center: Offset(width * .18, y),
-      width: width * .27,
-      height: width * .20,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(left, Radius.circular(width * .05)),
-      stroke,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(right, Radius.circular(width * .05)),
-      stroke,
-    );
-    canvas.drawLine(Offset(left.right, y), Offset(right.left, y), stroke);
-    if (funny) {
-      canvas.drawArc(
-        Rect.fromCenter(
-          center: Offset(0, width * .22),
-          width: width * (.18 + smile * .06),
-          height: width * .10,
-        ),
-        0,
-        3.14,
-        false,
-        stroke,
-      );
-    }
-  }
-
-  void _hat(Canvas canvas, double width) {
-    final paint = Paint()..color = const Color(0xFF22211F);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(
-          center: Offset(0, -width * .55),
-          width: width * .62,
-          height: width * .16,
-        ),
-        Radius.circular(width * .04),
-      ),
-      paint,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(
-          center: Offset(0, -width * .70),
-          width: width * .40,
-          height: width * .25,
-        ),
-        Radius.circular(width * .06),
-      ),
-      paint,
-    );
-    canvas.drawRect(
-      Rect.fromCenter(
-        center: Offset(0, -width * .63),
-        width: width * .38,
-        height: width * .045,
-      ),
-      Paint()..color = yellow,
-    );
-  }
-
-  void _catEars(Canvas canvas, double width) {
-    final paint = Paint()..color = const Color(0xFFF2C9A2);
-    for (final side in [-1, 1]) {
-      final path = Path()
-        ..moveTo(side * width * .18, -width * .45)
-        ..lineTo(side * width * .34, -width * .76)
-        ..lineTo(side * width * .47, -width * .39)
-        ..close();
-      canvas.drawPath(path, paint);
-      canvas.drawPath(
-        path,
-        Paint()
-          ..color = Colors.black.withValues(alpha: .12)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = width * .025,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _FaceEffectPainter oldDelegate) =>
-      oldDelegate.filter != filter ||
-      oldDelegate.center != center ||
-      oldDelegate.faceSize != faceSize ||
-      oldDelegate.roll != roll ||
-      oldDelegate.smile != smile;
 }
 
 class _CoverCameraPreview extends StatelessWidget {
