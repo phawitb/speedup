@@ -21,9 +21,7 @@ class AnalysisApi {
   static String get defaultBaseUrl {
     const configured = String.fromEnvironment('SPEAKUP_BACKEND_URL');
     if (configured.isNotEmpty) return configured;
-    return Platform.isAndroid
-        ? 'http://10.0.2.2:8787'
-        : 'http://127.0.0.1:8787';
+    return 'http://127.0.0.1:8787';
   }
 
   Future<AnalysisResult> analyze({

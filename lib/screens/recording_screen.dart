@@ -807,21 +807,7 @@ class _CompletionSheetState extends State<CompletionSheet>
 
   Future<void> _skipSave() async {
     if (saving) return;
-    setState(() => preparing = true);
-    try {
-      await widget.videoRecording.prepare();
-      if (!mounted) return;
-      setState(() {
-        preparing = false;
-        videoDecisionMade = true;
-      });
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => preparing = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not prepare video: $error')),
-      );
-    }
+    setState(() => videoDecisionMade = true);
   }
 
   @override
@@ -880,6 +866,12 @@ class _CompletionSheetState extends State<CompletionSheet>
                                 fontSize: 17,
                                 fontWeight: FontWeight.w700,
                               ),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'Saving exports the final clip. Skipping lets you analyze right away.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(fontSize: 12, color: inkSoft),
                             ),
                             const SizedBox(height: 12),
                             Row(

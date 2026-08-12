@@ -42,8 +42,8 @@ class VideoComposer(private val context: Context) {
             emptyList(),
             listOf(
                 Presentation.createForWidthAndHeight(
-                    1080,
-                    1920,
+                    720,
+                    1280,
                     Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP,
                 ),
                 OverlayEffect(listOf<TextureOverlay>(overlay)),
@@ -81,8 +81,8 @@ private class SpeakUpOverlay(
     private val context: Context,
     private val arguments: Map<String, Any?>,
 ) : BitmapOverlay() {
-    private val width = 1080
-    private val height = 1920
+    private val width = 720
+    private val height = 1280
     private val half = height / 2
     private val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
     private val topic = arguments["topic"] as? String ?: "Speaking practice"
@@ -121,31 +121,31 @@ private class SpeakUpOverlay(
             color = Color.argb(26, 80, 78, 73)
             strokeWidth = 2f
         }
-        for (x in 0..width step 72) canvas.drawLine(x.toFloat(), 0f, x.toFloat(), half.toFloat(), grid)
-        for (y in 0..half step 72) canvas.drawLine(0f, y.toFloat(), width.toFloat(), y.toFloat(), grid)
+        for (x in 0..width step 48) canvas.drawLine(x.toFloat(), 0f, x.toFloat(), half.toFloat(), grid)
+        for (y in 0..half step 48) canvas.drawLine(0f, y.toFloat(), width.toFloat(), y.toFloat(), grid)
 
         val ink = Color.rgb(31, 29, 27)
         val bold = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = ink
             typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
         }
-        bold.textSize = 64f
-        canvas.drawText("Day $day 🔥", 62f, 150f, bold)
-        drawRec(canvas, width - 250f, 92f)
+        bold.textSize = 43f
+        canvas.drawText("Day $day 🔥", 42f, 100f, bold)
+        drawRec(canvas, width - 167f, 61f)
 
-        bold.textSize = 56f
+        bold.textSize = 37f
         bold.textAlign = Paint.Align.CENTER
-        drawCenteredWrapped(canvas, topic, width / 2f, 300f, width - 150f, 66f, bold, 3)
+        drawCenteredWrapped(canvas, topic, width / 2f, 200f, width - 100f, 44f, bold, 3)
 
         val elapsed = (timeUs / 1_000_000).toInt()
         val remaining = (duration - elapsed).coerceIn(0, duration)
-        bold.textSize = 142f
+        bold.textSize = 95f
         bold.typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.NORMAL)
-        canvas.drawText("%02d:%02d".format(remaining / 60, remaining % 60), width / 2f, 700f, bold)
+        canvas.drawText("%02d:%02d".format(remaining / 60, remaining % 60), width / 2f, 467f, bold)
 
         val ratio = if (duration == 0) 0f else remaining.toFloat() / duration
         val track = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(222, 213, 232) }
-        canvas.drawRoundRect(RectF(125f, 790f, width - 125f, 818f), 14f, 14f, track)
+        canvas.drawRoundRect(RectF(83f, 527f, width - 83f, 545f), 9f, 9f, track)
         val progress = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = when {
                 ratio <= .15f -> Color.rgb(232, 60, 49)
@@ -153,7 +153,7 @@ private class SpeakUpOverlay(
                 else -> Color.rgb(85, 69, 133)
             }
         }
-        canvas.drawRoundRect(RectF(125f, 790f, 125f + (width - 250f) * ratio, 818f), 14f, 14f, progress)
+        canvas.drawRoundRect(RectF(83f, 527f, 83f + (width - 166f) * ratio, 545f), 9f, 9f, progress)
     }
 
     private fun drawRec(canvas: Canvas, x: Float, y: Float) {
@@ -162,15 +162,15 @@ private class SpeakUpOverlay(
             style = Paint.Style.STROKE
             strokeWidth = 4f
         }
-        canvas.drawRoundRect(RectF(x, y, x + 185f, y + 86f), 43f, 43f, border)
+        canvas.drawRoundRect(RectF(x, y, x + 123f, y + 57f), 29f, 29f, border)
         val red = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(232, 60, 49) }
-        canvas.drawCircle(x + 38f, y + 43f, 15f, red)
+        canvas.drawCircle(x + 25f, y + 29f, 10f, red)
         val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.rgb(31, 29, 27)
-            textSize = 45f
+            textSize = 30f
             typeface = android.graphics.Typeface.DEFAULT_BOLD
         }
-        canvas.drawText("REC", x + 68f, y + 59f, text)
+        canvas.drawText("REC", x + 45f, y + 39f, text)
     }
 
     private fun drawAvatar(canvas: Canvas, timeUs: Long) {
@@ -185,9 +185,9 @@ private class SpeakUpOverlay(
         val rightEye = number(sample, "rightEye", 1f)
         val mouth = number(sample, "mouthOpen")
         val smile = number(sample, "smile")
-        val size = 930f
-        val cx = width / 2f + yaw * 42f
-        val cy = half + 500f + pitch * 25f
+        val size = 620f
+        val cx = width / 2f + yaw * 28f
+        val cy = half + 333f + pitch * 17f
         canvas.save()
         canvas.rotate(roll * 7f, cx, cy)
         canvas.translate(cx - size / 2f, cy - size / 2f)
