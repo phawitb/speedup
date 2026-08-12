@@ -248,7 +248,7 @@ List<String> _wordBank(Difficulty difficulty) {
   };
   return [
     for (final word in words.take(100))
-      '#${word.word}\n###${word.definition}\n###${word.example}',
+      '${word.word}\n${word.definition}\n${word.example}',
   ];
 }
 
@@ -329,29 +329,29 @@ const _easyFrames = [
 ];
 
 const _mediumFrames = [
-  'Describe {subject} and explain how it affects your daily life.',
-  'Compare {subject} with a similar experience or idea.',
-  'Explain the main benefits and drawbacks of {subject}.',
-  'Tell a story about {subject}, then explain what you learned.',
+  'Describe how {subject} affects your daily life.',
+  'Compare {subject} with a similar idea.',
+  'Explain one benefit and one drawback of {subject}.',
+  'Tell a story about {subject} and what you learned.',
   'What would you change about {subject}, and why?',
-  'How could {subject} become more useful in the future?',
-  'Explain why different people may feel differently about {subject}.',
-  'Describe a problem connected to {subject} and suggest a solution.',
-  'What does {subject} reveal about your personality or values?',
-  'Give a balanced opinion about {subject}.',
+  'How could {subject} improve in the future?',
+  'Why might people feel differently about {subject}?',
+  'Suggest one solution for a problem with {subject}.',
+  'What does {subject} reveal about your values?',
+  'Give a balanced opinion on {subject}.',
 ];
 
 const _hardFrames = [
-  'Analyze the long-term impact of {subject} on people and society.',
+  'Analyze the long-term impact of {subject}.',
   'Argue for or against a common belief about {subject}.',
-  'Discuss the ethical or practical trade-offs connected to {subject}.',
-  'Explain how {subject} could change over the next decade.',
+  'Discuss a trade-off connected to {subject}.',
+  'Explain how {subject} may change in ten years.',
   'Evaluate whether {subject} is overrated or underrated.',
-  'Use a personal example to support a broader point about {subject}.',
-  'Discuss how culture, age, or income might influence views on {subject}.',
-  'Propose a realistic improvement related to {subject} and defend it.',
-  'Explain a hidden cause and a hidden consequence of {subject}.',
-  'Give a nuanced answer about {subject}, including both sides.',
+  'Use a personal example to support a point about {subject}.',
+  'How might culture or age shape views on {subject}?',
+  'Propose a realistic improvement for {subject}.',
+  'Explain one hidden cause and result of {subject}.',
+  'Give a nuanced answer with both sides of {subject}.',
 ];
 
 class _WordEntry {

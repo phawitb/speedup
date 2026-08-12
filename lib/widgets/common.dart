@@ -756,15 +756,9 @@ class _TopicCardState extends State<TopicCard> {
                   child: child,
                 ),
               ),
-              child: Text(
-                widget.topic,
+              child: _TopicText(
+                topic: widget.topic,
                 key: ValueKey(widget.topic),
-                textAlign: TextAlign.center,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(height: 1.13),
               ),
             ),
             Align(
@@ -803,6 +797,70 @@ class _TopicCardState extends State<TopicCard> {
       ],
     ),
   );
+}
+
+class _TopicText extends StatelessWidget {
+  const _TopicText({super.key, required this.topic});
+
+  final String topic;
+
+  @override
+  Widget build(BuildContext context) {
+    final lines = topic
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList();
+    if (lines.length >= 3) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              lines[0],
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                fontSize: 28,
+                height: 1,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              lines[1],
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: inkSoft, fontSize: 13, height: 1.1),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              lines[2],
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: inkSoft,
+                fontSize: 13,
+                height: 1.1,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return Text(
+      topic,
+      textAlign: TextAlign.center,
+      maxLines: 3,
+      overflow: TextOverflow.ellipsis,
+      style: Theme.of(context).textTheme.titleLarge?.copyWith(height: 1.13),
+    );
+  }
 }
 
 class ChoiceChipRow extends StatelessWidget {

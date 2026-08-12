@@ -189,17 +189,8 @@ class _RecordingScreenState extends State<RecordingScreen>
                           const Spacer(),
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 34),
-                            child: Text(
-                              widget.controller.session.topic,
-                              textAlign: TextAlign.center,
-                              maxLines: 3,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 20,
-                                color: ink,
-                                fontWeight: FontWeight.w600,
-                                height: 1.12,
-                              ),
+                            child: _RecordingTopicText(
+                              topic: widget.controller.session.topic,
                             ),
                           ),
                           const SizedBox(height: 12),
@@ -383,6 +374,72 @@ class _PreparingVideoOverlay extends StatefulWidget {
 
   @override
   State<_PreparingVideoOverlay> createState() => _PreparingVideoOverlayState();
+}
+
+class _RecordingTopicText extends StatelessWidget {
+  const _RecordingTopicText({required this.topic});
+
+  final String topic;
+
+  @override
+  Widget build(BuildContext context) {
+    final lines = topic
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList();
+    if (lines.length >= 3) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            lines[0],
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 24,
+              color: ink,
+              fontWeight: FontWeight.w800,
+              height: 1,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            lines[1],
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 13, color: inkSoft, height: 1.05),
+          ),
+          Text(
+            lines[2],
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 13,
+              color: inkSoft,
+              height: 1.05,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+      );
+    }
+    return Text(
+      topic,
+      textAlign: TextAlign.center,
+      maxLines: 3,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(
+        fontSize: 20,
+        color: ink,
+        fontWeight: FontWeight.w600,
+        height: 1.12,
+      ),
+    );
+  }
 }
 
 class _PreparingVideoOverlayState extends State<_PreparingVideoOverlay>
@@ -657,25 +714,55 @@ class _SpeakingGuide extends StatelessWidget {
           const SizedBox(height: 5),
           ...guide.words.map(
             (word) => Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: DefaultTextStyle(
-                style: const TextStyle(
-                  color: inkSoft,
-                  fontSize: 13,
-                  height: 1.18,
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: .55),
+                  borderRadius: BorderRadius.circular(11),
+                  border: Border.all(
+                    color: const Color(0xFFE5DCCB),
+                    width: 1.1,
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '#${word.word}',
+                      word.word,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: ink,
+                        fontSize: 19,
+                        height: 1,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                    Text('###${word.definition}'),
-                    Text('###${word.example}'),
+                    const SizedBox(height: 4),
+                    Text(
+                      word.definition,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: inkSoft,
+                        fontSize: 12,
+                        height: 1.12,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      word.example,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: inkSoft,
+                        fontSize: 12,
+                        height: 1.12,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -1143,7 +1230,7 @@ class _SheetPreparingOverlayState extends State<_SheetPreparingOverlay>
   @override
   Widget build(BuildContext context) => DecoratedBox(
     decoration: BoxDecoration(
-      color: paper.withValues(alpha: .94),
+      color: paper,
       borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
     ),
     child: Center(
