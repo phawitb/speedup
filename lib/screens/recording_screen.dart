@@ -1039,133 +1039,134 @@ class _CompletionSheetState extends State<CompletionSheet>
   Widget build(BuildContext context) => BottomSheetShell(
     child: Stack(
       children: [
-        ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(context).height * .70,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              children: [
-                const Text('🎉', style: TextStyle(fontSize: 42)),
-                const Text(
-                  'Well done!',
-                  style: TextStyle(fontSize: 23, fontWeight: FontWeight.w800),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'You spoke for ${_time(widget.controller.session.elapsedSeconds)}',
-                  style: const TextStyle(fontSize: 12),
-                ),
-                const SizedBox(height: 14),
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 280),
-                  child: videoDecisionMade
-                      ? _ActionTile(
-                          key: const ValueKey('analyze'),
-                          icon: Icons.psychology_rounded,
-                          color: purple,
-                          title: 'Analyze My Speech',
-                          subtitle: saved
-                              ? 'Video saved — ready for your feedback'
-                              : 'Get a transcript, corrections, and feedback',
-                          onTap: () {
-                            Navigator.pop(context);
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => ProcessingScreen(
-                                  controller: widget.controller,
-                                  cameraService: widget.cameraService,
-                                  videoRecording: widget.videoRecording,
-                                  initialWavPath: savedWavPath,
-                                  initialTranscription: savedTranscription,
+        if (!preparing)
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(context).height * .70,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  const Text('🎉', style: TextStyle(fontSize: 42)),
+                  const Text(
+                    'Well done!',
+                    style: TextStyle(fontSize: 23, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'You spoke for ${_time(widget.controller.session.elapsedSeconds)}',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  const SizedBox(height: 14),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 280),
+                    child: videoDecisionMade
+                        ? _ActionTile(
+                            key: const ValueKey('analyze'),
+                            icon: Icons.psychology_rounded,
+                            color: purple,
+                            title: 'Analyze My Speech',
+                            subtitle: saved
+                                ? 'Video saved — ready for your feedback'
+                                : 'Get a transcript, corrections, and feedback',
+                            onTap: () {
+                              Navigator.pop(context);
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ProcessingScreen(
+                                    controller: widget.controller,
+                                    cameraService: widget.cameraService,
+                                    videoRecording: widget.videoRecording,
+                                    initialWavPath: savedWavPath,
+                                    initialTranscription: savedTranscription,
+                                  ),
+                                ),
+                              );
+                            },
+                          )
+                        : Column(
+                            key: const ValueKey('video-choice'),
+                            children: [
+                              const Text(
+                                'Would you like to save this video?',
+                                style: TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
-                            );
-                          },
-                        )
-                      : Column(
-                          key: const ValueKey('video-choice'),
-                          children: [
-                            const Text(
-                              'Would you like to save this video?',
-                              style: TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w700,
+                              const SizedBox(height: 4),
+                              const Text(
+                                'Saving exports the final clip. Skipping lets you analyze right away.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(fontSize: 12, color: inkSoft),
                               ),
-                            ),
-                            const SizedBox(height: 4),
-                            const Text(
-                              'Saving exports the final clip. Skipping lets you analyze right away.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: 12, color: inkSoft),
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Tooltip(
-                                  message: 'Save Video',
-                                  child: InkWell(
-                                    onTap: _save,
-                                    customBorder: const CircleBorder(),
-                                    child: AnimatedContainer(
-                                      duration: const Duration(
-                                        milliseconds: 250,
-                                      ),
-                                      width: 64,
-                                      height: 64,
-                                      decoration: BoxDecoration(
-                                        color: yellow,
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: ink,
-                                          width: 2,
+                              const SizedBox(height: 12),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Tooltip(
+                                    message: 'Save Video',
+                                    child: InkWell(
+                                      onTap: _save,
+                                      customBorder: const CircleBorder(),
+                                      child: AnimatedContainer(
+                                        duration: const Duration(
+                                          milliseconds: 250,
                                         ),
-                                        boxShadow: const [
-                                          BoxShadow(
+                                        width: 64,
+                                        height: 64,
+                                        decoration: BoxDecoration(
+                                          color: yellow,
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
                                             color: ink,
-                                            offset: Offset(3, 3),
+                                            width: 2,
                                           ),
-                                        ],
-                                      ),
-                                      child: saving
-                                          ? const Padding(
-                                              padding: EdgeInsets.all(19),
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2.5,
-                                                color: ink,
-                                              ),
-                                            )
-                                          : const Icon(
-                                              Icons.download_rounded,
+                                          boxShadow: const [
+                                            BoxShadow(
                                               color: ink,
-                                              size: 30,
+                                              offset: Offset(3, 3),
                                             ),
+                                          ],
+                                        ),
+                                        child: const Icon(
+                                          Icons.download_rounded,
+                                          color: ink,
+                                          size: 30,
+                                        ),
+                                      ),
                                     ),
                                   ),
-                                ),
-                                const SizedBox(width: 22),
-                                TextButton(
-                                  onPressed: _skipSave,
-                                  style: TextButton.styleFrom(
-                                    foregroundColor: inkSoft,
+                                  const SizedBox(width: 22),
+                                  TextButton(
+                                    onPressed: _skipSave,
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: inkSoft,
+                                    ),
+                                    child: const Text(
+                                      "Don't Save",
+                                      style: TextStyle(fontSize: 17),
+                                    ),
                                   ),
-                                  child: const Text(
-                                    "Don't Save",
-                                    style: TextStyle(fontSize: 17),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                ),
-              ],
+                                ],
+                              ),
+                            ],
+                          ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-        if (widget.celebrate)
+        if (preparing)
+          SizedBox(
+            height: math.min(MediaQuery.sizeOf(context).height * .54, 480),
+            child: _SheetPreparingOverlay(
+              progress: widget.videoRecording.exportProgress,
+              stage: widget.videoRecording.exportStage,
+            ),
+          ),
+        if (!preparing && widget.celebrate)
           Positioned.fill(
             child: IgnorePointer(
               child: AnimatedBuilder(
@@ -1174,13 +1175,6 @@ class _CompletionSheetState extends State<CompletionSheet>
                   painter: _CelebrationPainter(celebrationController.value),
                 ),
               ),
-            ),
-          ),
-        if (preparing)
-          Positioned.fill(
-            child: _SheetPreparingOverlay(
-              progress: widget.videoRecording.exportProgress,
-              stage: widget.videoRecording.exportStage,
             ),
           ),
       ],
