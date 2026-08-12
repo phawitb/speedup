@@ -15,6 +15,7 @@ import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetectorOptions
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
@@ -60,6 +61,18 @@ class MainActivity : FlutterActivity() {
                 }
             }
         }
+        EventChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "com.speakup.app/video_composer_progress",
+        ).setStreamHandler(object : EventChannel.StreamHandler {
+            override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+                videoComposer.progressSink = events
+            }
+
+            override fun onCancel(arguments: Any?) {
+                videoComposer.progressSink = null
+            }
+        })
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             "com.speakup.app/face_tracking",

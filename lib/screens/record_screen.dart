@@ -206,13 +206,14 @@ class _RecordScreenState extends State<RecordScreen> {
                           bottom: 16,
                           child: Row(
                             children: [
-                              _RoundAction(
-                                icon: widget.cameraService.isEnabled
-                                    ? Icons.palette_outlined
-                                    : Icons.palette_outlined,
-                                label: 'Customize',
-                                onTap: _openAvatarCustomizer,
-                              ),
+                              if (widget.cameraService.isEnabled)
+                                const SizedBox(width: 47)
+                              else
+                                _RoundAction(
+                                  icon: Icons.palette_outlined,
+                                  label: 'Customize',
+                                  onTap: _openAvatarCustomizer,
+                                ),
                               const SizedBox(width: 18),
                               Expanded(
                                 child: PurpleButton(

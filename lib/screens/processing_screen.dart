@@ -18,10 +18,14 @@ class ProcessingScreen extends StatefulWidget {
     required this.controller,
     required this.cameraService,
     required this.videoRecording,
+    this.initialWavPath,
+    this.initialTranscription,
   });
   final AppController controller;
   final CameraService cameraService;
   final DirectVideoRecordingService videoRecording;
+  final String? initialWavPath;
+  final TranscriptionResult? initialTranscription;
 
   @override
   State<ProcessingScreen> createState() => _ProcessingScreenState();
@@ -40,6 +44,8 @@ class _ProcessingScreenState extends State<ProcessingScreen> {
   @override
   void initState() {
     super.initState();
+    wavPath = widget.initialWavPath;
+    transcription = widget.initialTranscription;
     WidgetsBinding.instance.addPostFrameCallback((_) => _run());
   }
 

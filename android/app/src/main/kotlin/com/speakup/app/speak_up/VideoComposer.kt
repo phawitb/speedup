@@ -23,13 +23,20 @@ import androidx.media3.transformer.Effects
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.Transformer
+import io.flutter.plugin.common.EventChannel
 import java.io.File
 import kotlin.math.max
 import kotlin.math.roundToInt
 
 @UnstableApi
 class VideoComposer(private val context: Context) {
+    @Volatile
+    var progressSink: EventChannel.EventSink? = null
+    @Volatile
+    private var exporting = false
+
     fun compose(arguments: Map<String, Any?>, callback: (Result<String>) -> Unit) {
+        exporting = true
         val inputPath = arguments["inputPath"] as? String
             ?: return callback(Result.failure(IllegalArgumentException("The camera video is missing")))
         val input = File(inputPath)
@@ -55,6 +62,8 @@ class VideoComposer(private val context: Context) {
         val transformer = Transformer.Builder(context)
             .addListener(object : Transformer.Listener {
                 override fun onCompleted(composition: Composition, exportResult: ExportResult) {
+                    exporting = false
+                    progressSink?.success(1.0)
                     if (output.exists() && output.length() > 0) {
                         callback(Result.success(output.absolutePath))
                     } else {
@@ -67,12 +76,26 @@ class VideoComposer(private val context: Context) {
                     exportResult: ExportResult,
                     exportException: ExportException,
                 ) {
+                    exporting = false
                     output.delete()
                     callback(Result.failure(exportException))
                 }
             })
             .build()
         transformer.start(edited, output.absolutePath)
+        val progressHolder = androidx.media3.transformer.ProgressHolder()
+        val progressRunnable = object : Runnable {
+            override fun run() {
+                val state = transformer.getProgress(progressHolder)
+                if (state != Transformer.PROGRESS_STATE_NOT_STARTED) {
+                    progressSink?.success((progressHolder.progress / 100.0).coerceIn(0.0, 0.99))
+                }
+                if (exporting) {
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(this, 180L)
+                }
+            }
+        }
+        android.os.Handler(android.os.Looper.getMainLooper()).post(progressRunnable)
     }
 }
 
@@ -94,6 +117,9 @@ private class SpeakUpOverlay(
         ?.mapNotNull { it as? Map<*, *> }
         .orEmpty()
     private val background = loadBackground(arguments["avatarBackground"] as? String)
+    private val transcriptSegments = (arguments["transcriptSegments"] as? List<*>)
+        ?.mapNotNull { it as? Map<*, *> }
+        .orEmpty()
     private val scarfColor = when (arguments["avatarScarf"] as? String) {
         "Berry" -> Color.rgb(185, 75, 120)
         "Orange" -> Color.rgb(242, 106, 46)
@@ -111,6 +137,7 @@ private class SpeakUpOverlay(
         canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
         drawTop(canvas, presentationTimeUs)
         if (avatarMode) drawAvatar(canvas, presentationTimeUs)
+        drawTranscript(canvas, presentationTimeUs)
         return bitmap
     }
 
@@ -451,6 +478,50 @@ private class SpeakUpOverlay(
 
     private fun number(sample: Map<*, *>?, key: String, fallback: Float = 0f): Float =
         (sample?.get(key) as? Number)?.toFloat() ?: fallback
+
+    private fun drawTranscript(canvas: Canvas, timeUs: Long) {
+        if (transcriptSegments.isEmpty()) return
+        val timeMs = timeUs / 1000L
+        val active = transcriptSegments.firstOrNull {
+            val start = ((it["startMs"] as? Number)?.toLong() ?: 0L) - 180L
+            val end = ((it["endMs"] as? Number)?.toLong() ?: start + 2600L) + 320L
+            timeMs in start..end
+        } ?: return
+        val text = (active["text"] as? String)?.trim().orEmpty()
+        if (text.isEmpty()) return
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            textSize = 30f
+            textAlign = Paint.Align.CENTER
+            typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+        }
+        val lines = wrapLines(text, paint, width - 110f, 2)
+        val lineHeight = 38f
+        val boxHeight = 34f + lines.size * lineHeight
+        val top = height - 150f - boxHeight
+        val box = RectF(52f, top, width - 52f, top + boxHeight)
+        canvas.drawRoundRect(box, 20f, 20f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(178, 18, 17, 16) })
+        lines.forEachIndexed { index, line ->
+            canvas.drawText(line, width / 2f, top + 45f + index * lineHeight, paint)
+        }
+    }
+
+    private fun wrapLines(value: String, paint: Paint, maxWidth: Float, maxLines: Int): List<String> {
+        val words = value.split(Regex("\\s+")).filter { it.isNotBlank() }
+        val lines = mutableListOf<String>()
+        var current = ""
+        for (word in words) {
+            val candidate = if (current.isEmpty()) word else "$current $word"
+            if (paint.measureText(candidate) <= maxWidth || current.isEmpty()) current = candidate
+            else {
+                lines += current
+                current = word
+                if (lines.size == maxLines - 1) break
+            }
+        }
+        if (current.isNotEmpty() && lines.size < maxLines) lines += current
+        return lines
+    }
 
     private fun drawCenteredWrapped(
         canvas: Canvas,

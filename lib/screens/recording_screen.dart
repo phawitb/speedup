@@ -1,12 +1,15 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../app_controller.dart';
+import '../audio_extraction_service.dart';
 import '../camera_service.dart';
 import '../direct_video_recording_service.dart';
 import '../theme.dart';
+import '../transcription_service.dart';
 import '../widgets/common.dart';
 import 'processing_screen.dart';
 
@@ -142,6 +145,7 @@ class _RecordingScreenState extends State<RecordingScreen>
             videoRecording.pendingVideoPath != null)) {
       unawaited(videoRecording.discard());
     }
+    videoRecording.dispose();
     super.dispose();
   }
 
@@ -641,6 +645,42 @@ class _SpeakingGuide extends StatelessWidget {
           ),
           const Divider(height: 15),
           Text(
+            'Category words',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontSize: 16),
+          ),
+          const SizedBox(height: 5),
+          ...guide.words.map(
+            (word) => Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: RichText(
+                text: TextSpan(
+                  style: const TextStyle(
+                    color: inkSoft,
+                    fontSize: 13,
+                    height: 1.18,
+                  ),
+                  children: [
+                    TextSpan(
+                      text: '${word.word} ',
+                      style: const TextStyle(
+                        color: ink,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    TextSpan(text: '(${word.translation})\n'),
+                    TextSpan(
+                      text: word.example,
+                      style: const TextStyle(color: inkSoft),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const Divider(height: 15),
+          Text(
             'Useful language',
             style: Theme.of(
               context,
@@ -684,6 +724,23 @@ class _SpeakingGuide extends StatelessWidget {
           'What appeals to me is…',
           'I would be fascinated by…',
         ],
+        words: [
+          _CategoryWord(
+            'immersive',
+            'สมจริงจนรู้สึกเข้าไปอยู่ในนั้น',
+            'The world feels immersive because every detail has meaning.',
+          ),
+          _CategoryWord(
+            'adventure',
+            'การผจญภัย',
+            'I would choose this world because it is full of adventure.',
+          ),
+          _CategoryWord(
+            'belong',
+            'รู้สึกเป็นส่วนหนึ่ง',
+            'I think I would belong there because the people are brave.',
+          ),
+        ],
       );
     }
     if (topic.contains('habit')) {
@@ -694,6 +751,23 @@ class _SpeakingGuide extends StatelessWidget {
           'Share the impact on your life',
         ],
         phrases: ['I began by…', 'Over time…', 'The biggest change was…'],
+        words: [
+          _CategoryWord(
+            'consistent',
+            'สม่ำเสมอ',
+            'Being consistent helped me improve little by little.',
+          ),
+          _CategoryWord(
+            'routine',
+            'กิจวัตร',
+            'This routine makes my day feel more organized.',
+          ),
+          _CategoryWord(
+            'impact',
+            'ผลกระทบ',
+            'The biggest impact is that I feel more confident.',
+          ),
+        ],
       );
     }
     if (topic.contains('skill')) {
@@ -708,6 +782,23 @@ class _SpeakingGuide extends StatelessWidget {
           'This would allow me to…',
           'In the long run…',
         ],
+        words: [
+          _CategoryWord(
+            'master',
+            'เชี่ยวชาญ',
+            'I would love to master this skill quickly.',
+          ),
+          _CategoryWord(
+            'practical',
+            'ใช้ได้จริง',
+            'It is practical because I could use it every day.',
+          ),
+          _CategoryWord(
+            'opportunity',
+            'โอกาส',
+            'This skill would create more opportunities for me.',
+          ),
+        ],
       );
     }
     return const _GuideContent(
@@ -721,14 +812,43 @@ class _SpeakingGuide extends StatelessWidget {
         'What makes it special is…',
         'It gives me a sense of…',
       ],
+      words: [
+        _CategoryWord(
+          'peaceful',
+          'สงบ',
+          'This place feels peaceful even when I am stressed.',
+        ),
+        _CategoryWord(
+          'cozy',
+          'อบอุ่น สบาย',
+          'The cozy atmosphere helps me relax.',
+        ),
+        _CategoryWord(
+          'refreshing',
+          'สดชื่น',
+          'The fresh air is refreshing and clears my mind.',
+        ),
+      ],
     );
   }
 }
 
 class _GuideContent {
-  const _GuideContent({required this.ideas, required this.phrases});
+  const _GuideContent({
+    required this.ideas,
+    required this.phrases,
+    required this.words,
+  });
   final List<String> ideas;
   final List<String> phrases;
+  final List<_CategoryWord> words;
+}
+
+class _CategoryWord {
+  const _CategoryWord(this.word, this.translation, this.example);
+  final String word;
+  final String translation;
+  final String example;
 }
 
 String _time(int seconds) =>
@@ -757,6 +877,10 @@ class _CompletionSheetState extends State<CompletionSheet>
   bool saved = false;
   bool preparing = false;
   bool videoDecisionMade = false;
+  String? savedWavPath;
+  TranscriptionResult? savedTranscription;
+  final _audioExtractor = AudioExtractionService();
+  final _transcription = const TranscriptionService();
   late final AnimationController celebrationController;
 
   @override
@@ -782,7 +906,18 @@ class _CompletionSheetState extends State<CompletionSheet>
       preparing = true;
     });
     try {
-      await widget.videoRecording.save();
+      final transcript = await _transcribeForSave();
+      await widget.videoRecording.save(
+        transcriptSegments: transcript.segments
+            .map(
+              (segment) => {
+                'text': segment.text,
+                'startMs': segment.startMs,
+                'endMs': segment.endMs,
+              },
+            )
+            .toList(),
+      );
       if (!mounted) return;
       setState(() {
         saving = false;
@@ -852,6 +987,8 @@ class _CompletionSheetState extends State<CompletionSheet>
                                   controller: widget.controller,
                                   cameraService: widget.cameraService,
                                   videoRecording: widget.videoRecording,
+                                  initialWavPath: savedWavPath,
+                                  initialTranscription: savedTranscription,
                                 ),
                               ),
                             );
@@ -949,14 +1086,39 @@ class _CompletionSheetState extends State<CompletionSheet>
               ),
             ),
           ),
-        if (preparing) const Positioned.fill(child: _SheetPreparingOverlay()),
+        if (preparing)
+          Positioned.fill(
+            child: _SheetPreparingOverlay(
+              progress: widget.videoRecording.exportProgress,
+              stage: widget.videoRecording.exportStage,
+            ),
+          ),
       ],
     ),
   );
+
+  Future<TranscriptionResult> _transcribeForSave() async {
+    final existing = savedTranscription;
+    if (existing != null) return existing;
+    final videoPath = widget.videoRecording.pendingVideoPath;
+    if (videoPath == null) {
+      throw StateError('No recorded video is available.');
+    }
+    widget.videoRecording.exportStage.value = 'Creating transcript';
+    widget.videoRecording.exportProgress.value = .08;
+    savedWavPath ??= await _audioExtractor.extractWav(videoPath);
+    widget.videoRecording.exportProgress.value = .18;
+    savedTranscription = await _transcription.transcribe(savedWavPath!);
+    widget.videoRecording.exportProgress.value = .32;
+    return savedTranscription!;
+  }
 }
 
 class _SheetPreparingOverlay extends StatefulWidget {
-  const _SheetPreparingOverlay();
+  const _SheetPreparingOverlay({required this.progress, required this.stage});
+
+  final ValueListenable<double> progress;
+  final ValueListenable<String> stage;
 
   @override
   State<_SheetPreparingOverlay> createState() => _SheetPreparingOverlayState();
@@ -999,9 +1161,15 @@ class _SheetPreparingOverlayState extends State<_SheetPreparingOverlay>
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
-              'Preparing video',
-              style: TextStyle(fontSize: 23, fontWeight: FontWeight.w800),
+            ValueListenableBuilder<String>(
+              valueListenable: widget.stage,
+              builder: (context, stage, _) => Text(
+                stage,
+                style: const TextStyle(
+                  fontSize: 23,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -1012,14 +1180,26 @@ class _SheetPreparingOverlayState extends State<_SheetPreparingOverlay>
             const SizedBox(height: 18),
             SizedBox(
               width: 220,
-              child: AnimatedBuilder(
-                animation: controller,
-                builder: (context, _) => LinearProgressIndicator(
-                  value: .15 + controller.value * .78,
-                  minHeight: 10,
-                  borderRadius: BorderRadius.circular(12),
-                  backgroundColor: const Color(0xFFE9E3D4),
-                  color: Color.lerp(yellow, green, controller.value),
+              child: ValueListenableBuilder<double>(
+                valueListenable: widget.progress,
+                builder: (context, progress, _) => Column(
+                  children: [
+                    LinearProgressIndicator(
+                      value: progress.clamp(0.0, 1.0),
+                      minHeight: 10,
+                      borderRadius: BorderRadius.circular(12),
+                      backgroundColor: const Color(0xFFE9E3D4),
+                      color: Color.lerp(yellow, green, progress),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${(progress * 100).round().clamp(0, 100)}%',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

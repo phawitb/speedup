@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'camera_service.dart';
@@ -16,6 +17,9 @@ class DirectVideoRecordingService {
   });
 
   static const _channel = MethodChannel('com.speakup.app/video_composer');
+  static const _progressChannel = EventChannel(
+    'com.speakup.app/video_composer_progress',
+  );
   static const _galleryChannel = MethodChannel(
     'com.speakup.app/screen_recording',
   );
@@ -35,6 +39,11 @@ class DirectVideoRecordingService {
   Timer? _sampleTimer;
   final List<Map<String, Object>> _faceSamples = [];
   DateTime? _startedAt;
+  StreamSubscription<dynamic>? _progressSubscription;
+  final ValueNotifier<double> exportProgress = ValueNotifier<double>(0);
+  final ValueNotifier<String> exportStage = ValueNotifier<String>(
+    'Preparing video',
+  );
 
   Future<void> start() async {
     if (isRecording) return;
@@ -46,6 +55,8 @@ class DirectVideoRecordingService {
     isPrepared = false;
     _saved = false;
     error = null;
+    exportProgress.value = 0;
+    exportStage.value = 'Preparing video';
     await _start(retryAfterRecovery: true);
   }
 
@@ -118,8 +129,10 @@ class DirectVideoRecordingService {
     }
   }
 
-  Future<void> save() async {
-    await prepare();
+  Future<void> save({
+    List<Map<String, Object?>> transcriptSegments = const [],
+  }) async {
+    await prepare(transcriptSegments: transcriptSegments);
     final path = pendingVideoPath;
     if (path == null) {
       throw StateError(error ?? 'No recorded video is available.');
@@ -129,7 +142,9 @@ class DirectVideoRecordingService {
     _saved = true;
   }
 
-  Future<String> prepare() async {
+  Future<String> prepare({
+    List<Map<String, Object?>> transcriptSegments = const [],
+  }) async {
     final rawPath = _rawVideoPath ?? pendingVideoPath;
     if (rawPath == null) {
       throw StateError(error ?? 'No recorded video is available.');
@@ -141,6 +156,21 @@ class DirectVideoRecordingService {
       return rawPath;
     }
     try {
+      exportStage.value = transcriptSegments.isEmpty
+          ? 'Composing video'
+          : 'Adding transcript';
+      final progressBase = transcriptSegments.isEmpty ? 0.0 : .35;
+      final progressRange = transcriptSegments.isEmpty ? 1.0 : .65;
+      exportProgress.value = progressBase;
+      await _progressSubscription?.cancel();
+      _progressSubscription = _progressChannel.receiveBroadcastStream().listen((
+        value,
+      ) {
+        if (value is num) {
+          exportProgress.value =
+              (progressBase + value.toDouble() * progressRange).clamp(0.0, 1.0);
+        }
+      });
       final composedPath = await _channel
           .invokeMethod<String>('compose', {
             'inputPath': rawPath,
@@ -152,6 +182,7 @@ class DirectVideoRecordingService {
             'avatarScarf': avatarStyle.scarf,
             'avatarBackground': avatarStyle.background,
             'faceSamples': _faceSamples,
+            'transcriptSegments': transcriptSegments,
           })
           .timeout(
             const Duration(minutes: 2),
@@ -164,6 +195,10 @@ class DirectVideoRecordingService {
       }
       pendingVideoPath = composedPath;
       isPrepared = true;
+      exportProgress.value = 1;
+      exportStage.value = 'Video ready';
+      await _progressSubscription?.cancel();
+      _progressSubscription = null;
       if (rawPath != composedPath) {
         try {
           await File(rawPath).delete();
@@ -172,6 +207,8 @@ class DirectVideoRecordingService {
       return composedPath;
     } catch (exception) {
       error = exception.toString();
+      await _progressSubscription?.cancel();
+      _progressSubscription = null;
       rethrow;
     }
   }
@@ -194,5 +231,12 @@ class DirectVideoRecordingService {
     }
     pendingVideoPath = null;
     await cameraService.resumeAvatarTracking();
+  }
+
+  void dispose() {
+    _sampleTimer?.cancel();
+    unawaited(_progressSubscription?.cancel());
+    exportProgress.dispose();
+    exportStage.dispose();
   }
 }

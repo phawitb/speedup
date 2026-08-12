@@ -27,7 +27,7 @@ void main() {
     expect(find.text('START'), findsOneWidget);
     expect(find.text('Day 1 🔥'), findsOneWidget);
     expect(find.textContaining('If you could live'), findsOneWidget);
-    expect(find.text('Customize'), findsOneWidget);
+    expect(find.text('Customize'), findsNothing);
     expect(find.byIcon(Icons.casino_outlined), findsOneWidget);
     expect(find.text('Camera'), findsOneWidget);
   });
@@ -73,6 +73,7 @@ void main() {
     await tester.tap(find.text('Camera'));
     await tester.pump(const Duration(milliseconds: 150));
     expect(find.text('Avatar'), findsOneWidget);
+    expect(find.text('Customize'), findsOneWidget);
     expect(find.text('No camera or webcam found'), findsNothing);
     await tester.pump(const Duration(milliseconds: 100));
     expect(camera.faceTracking.state.faceDetected, isTrue);
