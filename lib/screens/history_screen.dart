@@ -184,7 +184,7 @@ class _HistoryCard extends StatelessWidget {
     onTap: onTap,
     borderRadius: BorderRadius.circular(13),
     child: Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
       decoration: BoxDecoration(
         color: paper,
         border: Border.all(color: ink, width: 1.6),
@@ -215,12 +215,12 @@ class _HistoryCard extends StatelessWidget {
               children: [
                 Text(
                   item.topic,
-                  maxLines: 2,
+                  maxLines: 5,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 18,
+                    fontSize: 21,
                     fontWeight: FontWeight.w700,
-                    height: 1.15,
+                    height: 1.12,
                   ),
                 ),
                 const SizedBox(height: 7),

@@ -341,16 +341,6 @@ class _RecordingScreenState extends State<RecordingScreen>
                               ),
                             ),
                           ),
-                          if (showGuide)
-                            Positioned(
-                              left: 14,
-                              right: 14,
-                              bottom:
-                                  MediaQuery.viewPaddingOf(context).bottom + 82,
-                              child: _SpeakingGuide(
-                                topic: widget.controller.session.topic,
-                              ),
-                            ),
                         ],
                       ),
                     ),
@@ -359,6 +349,20 @@ class _RecordingScreenState extends State<RecordingScreen>
               ),
             ),
           ),
+          if (showGuide)
+            Positioned(
+              left: 14,
+              right: 14,
+              bottom: MediaQuery.viewPaddingOf(context).bottom + 92,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).height * .58,
+                ),
+                child: SingleChildScrollView(
+                  child: _SpeakingGuide(topic: widget.controller.session.topic),
+                ),
+              ),
+            ),
           if (preparingVideo)
             const Positioned.fill(child: _PreparingVideoOverlay()),
           if (finishError != null)
@@ -654,26 +658,24 @@ class _SpeakingGuide extends StatelessWidget {
           ...guide.words.map(
             (word) => Padding(
               padding: const EdgeInsets.only(bottom: 6),
-              child: RichText(
-                text: TextSpan(
-                  style: const TextStyle(
-                    color: inkSoft,
-                    fontSize: 13,
-                    height: 1.18,
-                  ),
+              child: DefaultTextStyle(
+                style: const TextStyle(
+                  color: inkSoft,
+                  fontSize: 13,
+                  height: 1.18,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    TextSpan(
-                      text: '${word.word} ',
+                    Text(
+                      '#${word.word}',
                       style: const TextStyle(
                         color: ink,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                    TextSpan(text: '(${word.translation})\n'),
-                    TextSpan(
-                      text: word.example,
-                      style: const TextStyle(color: inkSoft),
-                    ),
+                    Text('###${word.definition}'),
+                    Text('###${word.example}'),
                   ],
                 ),
               ),
@@ -727,17 +729,17 @@ class _SpeakingGuide extends StatelessWidget {
         words: [
           _CategoryWord(
             'immersive',
-            'สมจริงจนรู้สึกเข้าไปอยู่ในนั้น',
+            'deeply engaging and realistic',
             'The world feels immersive because every detail has meaning.',
           ),
           _CategoryWord(
             'adventure',
-            'การผจญภัย',
+            'an exciting or unusual experience',
             'I would choose this world because it is full of adventure.',
           ),
           _CategoryWord(
             'belong',
-            'รู้สึกเป็นส่วนหนึ่ง',
+            'to feel accepted in a place or group',
             'I think I would belong there because the people are brave.',
           ),
         ],
@@ -754,17 +756,17 @@ class _SpeakingGuide extends StatelessWidget {
         words: [
           _CategoryWord(
             'consistent',
-            'สม่ำเสมอ',
+            'happening regularly in a reliable way',
             'Being consistent helped me improve little by little.',
           ),
           _CategoryWord(
             'routine',
-            'กิจวัตร',
+            'a regular way of doing things',
             'This routine makes my day feel more organized.',
           ),
           _CategoryWord(
             'impact',
-            'ผลกระทบ',
+            'a strong effect or result',
             'The biggest impact is that I feel more confident.',
           ),
         ],
@@ -785,17 +787,17 @@ class _SpeakingGuide extends StatelessWidget {
         words: [
           _CategoryWord(
             'master',
-            'เชี่ยวชาญ',
+            'to become highly skilled at something',
             'I would love to master this skill quickly.',
           ),
           _CategoryWord(
             'practical',
-            'ใช้ได้จริง',
+            'useful in real situations',
             'It is practical because I could use it every day.',
           ),
           _CategoryWord(
             'opportunity',
-            'โอกาส',
+            'a chance to do something useful',
             'This skill would create more opportunities for me.',
           ),
         ],
@@ -815,17 +817,17 @@ class _SpeakingGuide extends StatelessWidget {
       words: [
         _CategoryWord(
           'peaceful',
-          'สงบ',
+          'calm and quiet',
           'This place feels peaceful even when I am stressed.',
         ),
         _CategoryWord(
           'cozy',
-          'อบอุ่น สบาย',
+          'warm, comfortable, and relaxing',
           'The cozy atmosphere helps me relax.',
         ),
         _CategoryWord(
           'refreshing',
-          'สดชื่น',
+          'making you feel new energy',
           'The fresh air is refreshing and clears my mind.',
         ),
       ],
@@ -845,9 +847,9 @@ class _GuideContent {
 }
 
 class _CategoryWord {
-  const _CategoryWord(this.word, this.translation, this.example);
+  const _CategoryWord(this.word, this.definition, this.example);
   final String word;
-  final String translation;
+  final String definition;
   final String example;
 }
 
@@ -908,7 +910,16 @@ class _CompletionSheetState extends State<CompletionSheet>
     try {
       final transcript = await _transcribeForSave();
       await widget.videoRecording.save(
-        transcriptSegments: _subtitleSegments(transcript),
+        transcriptSegments: transcript.segments
+            .where((segment) => segment.text.trim().isNotEmpty)
+            .map(
+              (segment) => {
+                'text': segment.text,
+                'startMs': segment.startMs,
+                'endMs': segment.endMs,
+              },
+            )
+            .toList(),
       );
       if (!mounted) return;
       setState(() {
@@ -1103,58 +1114,6 @@ class _CompletionSheetState extends State<CompletionSheet>
     savedTranscription = await _transcription.transcribe(savedWavPath!);
     widget.videoRecording.exportProgress.value = .32;
     return savedTranscription!;
-  }
-
-  List<Map<String, Object?>> _subtitleSegments(TranscriptionResult transcript) {
-    final cleanSegments = transcript.segments
-        .where((segment) => segment.text.trim().isNotEmpty)
-        .toList();
-    final totalMs = (widget.controller.session.elapsedSeconds * 1000).clamp(
-      1000,
-      600000,
-    );
-    final hasUsefulSegments =
-        cleanSegments.length >= 2 &&
-        cleanSegments.fold<int>(
-              0,
-              (sum, segment) =>
-                  sum + (segment.endMs - segment.startMs).clamp(0, totalMs),
-            ) >
-            totalMs * .55;
-    final source = hasUsefulSegments
-        ? cleanSegments
-        : _fallbackSubtitleSegments(transcript.text, totalMs);
-    return source
-        .map(
-          (segment) => {
-            'text': segment.text,
-            'startMs': segment.startMs,
-            'endMs': segment.endMs,
-          },
-        )
-        .toList();
-  }
-
-  List<TranscriptSegment> _fallbackSubtitleSegments(String text, int totalMs) {
-    final words = text
-        .split(RegExp(r'\s+'))
-        .map((word) => word.trim())
-        .where((word) => word.isNotEmpty)
-        .toList();
-    if (words.isEmpty) return const [];
-    final chunks = <String>[];
-    for (var index = 0; index < words.length; index += 7) {
-      chunks.add(words.skip(index).take(7).join(' '));
-    }
-    final step = totalMs / chunks.length;
-    return [
-      for (var index = 0; index < chunks.length; index++)
-        TranscriptSegment(
-          text: chunks[index],
-          startMs: (index * step).round(),
-          endMs: ((index + 1) * step).round(),
-        ),
-    ];
   }
 }
 
