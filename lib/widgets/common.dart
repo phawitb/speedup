@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
@@ -149,6 +151,8 @@ class _TrackedAvatarState extends State<_TrackedAvatar>
     with SingleTickerProviderStateMixin {
   late final AnimationController ticker;
   FaceTrackingState displayed = const FaceTrackingState();
+  late DateTime nextBlinkAt;
+  DateTime? blinkStartedAt;
 
   @override
   void initState() {
@@ -157,6 +161,7 @@ class _TrackedAvatarState extends State<_TrackedAvatar>
       vsync: this,
       duration: const Duration(seconds: 1),
     )..repeat();
+    nextBlinkAt = DateTime.now().add(const Duration(milliseconds: 2600));
   }
 
   @override
@@ -170,15 +175,40 @@ class _TrackedAvatarState extends State<_TrackedAvatar>
     animation: ticker,
     builder: (context, _) {
       displayed = displayed.blend(widget.tracking.state, .20);
-      return _PolishedCatAvatar(face: displayed, style: widget.style);
+      final now = DateTime.now();
+      if (blinkStartedAt == null && now.isAfter(nextBlinkAt)) {
+        blinkStartedAt = now;
+      }
+      var blink = 0.0;
+      final started = blinkStartedAt;
+      if (started != null) {
+        final elapsed = now.difference(started).inMilliseconds;
+        blink = elapsed < 90 ? elapsed / 90 : (1 - ((elapsed - 90) / 120));
+        blink = blink.clamp(0.0, 1.0);
+        if (elapsed > 210) {
+          blinkStartedAt = null;
+          final delayMs = 2200 + (now.millisecond % 2800);
+          nextBlinkAt = now.add(Duration(milliseconds: delayMs));
+        }
+      }
+      return _PolishedCatAvatar(
+        face: displayed,
+        style: widget.style,
+        autoBlink: blink,
+      );
     },
   );
 }
 
 class _PolishedCatAvatar extends StatelessWidget {
-  const _PolishedCatAvatar({required this.face, required this.style});
+  const _PolishedCatAvatar({
+    required this.face,
+    required this.style,
+    this.autoBlink = 0,
+  });
   final FaceTrackingState face;
   final AvatarStyle style;
+  final double autoBlink;
 
   @override
   Widget build(BuildContext context) {
@@ -241,6 +271,7 @@ class _PolishedCatAvatar extends StatelessWidget {
                           face: face,
                           style: style,
                           scarfColor: scarfColor,
+                          autoBlink: autoBlink,
                         ),
                       ),
                     ),
@@ -260,11 +291,13 @@ class _SimpleCatAvatarPainter extends CustomPainter {
     required this.face,
     required this.style,
     required this.scarfColor,
+    required this.autoBlink,
   });
 
   final FaceTrackingState face;
   final AvatarStyle style;
   final Color scarfColor;
+  final double autoBlink;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -279,230 +312,344 @@ class _SimpleCatAvatarPainter extends CustomPainter {
       'Brown Tabby': Color(0xFFA86D31),
     };
     final coat = coats[style.cat] ?? coats['White']!;
-    final shade = Color.lerp(coat, Colors.black, .12)!;
-    final blush = const Color(
-      0xFFFFA9A9,
-    ).withValues(alpha: .28 + face.smile * .18);
-    final cx = size.width * .5;
-    final cy = size.height * .48;
-    final head = Rect.fromCenter(
-      center: Offset(cx, cy),
-      width: size.width * .58,
-      height: size.height * .50,
+    final patch = Color.lerp(
+      coat,
+      Colors.black,
+      style.cat == 'White' ? .18 : .10,
+    )!;
+    final outline = Color.lerp(ink, coat, .08)!;
+    final unit = size.shortestSide;
+    final body = RRect.fromRectAndRadius(
+      Rect.fromLTWH(unit * .20, unit * .31, unit * .60, unit * .45),
+      Radius.circular(unit * .045),
     );
-    final headPath = Path()..addOval(head);
     final leftEar = Path()
-      ..moveTo(size.width * .24, size.height * .35)
-      ..quadraticBezierTo(
-        size.width * .25,
-        size.height * .12,
-        size.width * .40,
-        size.height * .28,
-      )
+      ..moveTo(unit * .23, unit * .34)
+      ..lineTo(unit * .28, unit * .17)
+      ..quadraticBezierTo(unit * .33, unit * .18, unit * .38, unit * .34)
       ..close();
     final rightEar = Path()
-      ..moveTo(size.width * .60, size.height * .28)
-      ..quadraticBezierTo(
-        size.width * .75,
-        size.height * .12,
-        size.width * .76,
-        size.height * .35,
-      )
+      ..moveTo(unit * .62, unit * .34)
+      ..quadraticBezierTo(unit * .67, unit * .18, unit * .72, unit * .17)
+      ..lineTo(unit * .77, unit * .34)
       ..close();
-    final paint = Paint()..isAntiAlias = true;
+    final paint = Paint()
+      ..isAntiAlias = false
+      ..strokeJoin = StrokeJoin.round;
     final shadow = Paint()
-      ..color = Colors.black.withValues(alpha: .12)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 13);
-    canvas.drawOval(head.shift(Offset(0, size.height * .035)), shadow);
+      ..color = Colors.black.withValues(alpha: .10)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
+    canvas.drawRRect(body.shift(Offset(unit * .016, unit * .020)), shadow);
     paint.color = coat;
     canvas.drawPath(leftEar, paint);
     canvas.drawPath(rightEar, paint);
-    canvas.drawPath(headPath, paint);
+    canvas.drawRRect(body, paint);
 
-    paint.color = Color.lerp(coat, Colors.white, .35)!;
-    canvas.drawPath(
-      Path()
-        ..moveTo(size.width * .285, size.height * .30)
-        ..quadraticBezierTo(
-          size.width * .285,
-          size.height * .20,
-          size.width * .36,
-          size.height * .285,
-        )
-        ..close(),
-      paint,
-    );
-    canvas.drawPath(
-      Path()
-        ..moveTo(size.width * .64, size.height * .285)
-        ..quadraticBezierTo(
-          size.width * .715,
-          size.height * .20,
-          size.width * .715,
-          size.height * .30,
-        )
-        ..close(),
-      paint,
-    );
-
-    final eyeY = size.height * (.435 + face.pitch * .014);
-    _drawEye(canvas, size, Offset(size.width * .39, eyeY), face.leftEye);
-    _drawEye(canvas, size, Offset(size.width * .61, eyeY), face.rightEye);
-
-    paint.color = blush;
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: Offset(size.width * .34, size.height * .545),
-        width: size.width * .09,
-        height: size.height * .04,
-      ),
-      paint,
-    );
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: Offset(size.width * .66, size.height * .545),
-        width: size.width * .09,
-        height: size.height * .04,
-      ),
-      paint,
-    );
-
-    paint.color = shade;
-    canvas.drawCircle(
-      Offset(size.width * .5, size.height * .535),
-      size.width * .018,
-      paint,
-    );
-    final mouthOpen = face.mouthOpen.clamp(0.0, 1.0);
-    final smile = face.smile.clamp(0.0, 1.0);
-    final mouthRect = Rect.fromCenter(
-      center: Offset(size.width * .5, size.height * .585),
-      width: size.width * (.07 + smile * .035),
-      height: size.height * (.012 + mouthOpen * .065),
-    );
-    paint.color = const Color(0xFF3A2023);
-    if (mouthOpen > .22) {
-      canvas.drawOval(mouthRect, paint);
-      paint.color = const Color(0xFFFF7D8E).withValues(alpha: .78);
-      canvas.drawOval(
-        mouthRect
-            .deflate(size.width * .018)
-            .shift(Offset(0, size.height * .014)),
-        paint,
-      );
-    } else {
-      final path = Path()
-        ..moveTo(size.width * .46, size.height * .575)
-        ..quadraticBezierTo(
-          size.width * .5,
-          size.height * (.598 + smile * .012),
-          size.width * .54,
-          size.height * .575,
-        );
-      canvas.drawPath(
-        path,
-        Paint()
-          ..color = shade
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = size.width * .009
-          ..strokeCap = StrokeCap.round,
-      );
-    }
-
-    _drawWhiskers(canvas, size, shade.withValues(alpha: .72));
-    _drawScarf(canvas, size, scarfColor);
+    _drawPatch(canvas, unit, patch, coat);
+    _drawEarInner(canvas, unit);
+    _drawTail(canvas, unit, coat, outline);
+    _drawLegs(canvas, unit, coat, outline);
+    _drawOutline(canvas, body, leftEar, rightEar, outline, unit);
+    _drawFace(canvas, unit, outline);
+    _drawScarf(canvas, unit, scarfColor, outline);
   }
 
-  void _drawEye(Canvas canvas, Size size, Offset center, double openness) {
-    final eyeRect = Rect.fromCenter(
-      center: center,
-      width: size.width * .105,
-      height: size.height * .106,
+  void _drawPatch(Canvas canvas, double unit, Color patch, Color coat) {
+    final path = Path()
+      ..moveTo(unit * .27, unit * .31)
+      ..quadraticBezierTo(unit * .37, unit * .34, unit * .43, unit * .45)
+      ..quadraticBezierTo(unit * .50, unit * .58, unit * .57, unit * .45)
+      ..quadraticBezierTo(unit * .63, unit * .34, unit * .73, unit * .31)
+      ..lineTo(unit * .73, unit * .31)
+      ..lineTo(unit * .27, unit * .31)
+      ..close();
+    canvas.drawPath(path, Paint()..color = patch.withValues(alpha: .55));
+    if (style.cat == 'Tuxedo') {
+      canvas.drawPath(
+        Path()
+          ..moveTo(unit * .20, unit * .31)
+          ..lineTo(unit * .42, unit * .31)
+          ..lineTo(unit * .50, unit * .48)
+          ..lineTo(unit * .58, unit * .31)
+          ..lineTo(unit * .80, unit * .31)
+          ..lineTo(unit * .80, unit * .76)
+          ..lineTo(unit * .20, unit * .76)
+          ..close(),
+        Paint()..color = coat,
+      );
+    }
+  }
+
+  void _drawEarInner(Canvas canvas, double unit) {
+    final paint = Paint()..color = const Color(0xFFFFE7DF);
+    canvas.drawPath(
+      Path()
+        ..moveTo(unit * .275, unit * .31)
+        ..lineTo(unit * .30, unit * .225)
+        ..lineTo(unit * .345, unit * .31)
+        ..close(),
+      paint,
     );
-    final open = openness.clamp(0.0, 1.0);
-    if (open < .18) {
+    canvas.drawPath(
+      Path()
+        ..moveTo(unit * .655, unit * .31)
+        ..lineTo(unit * .70, unit * .225)
+        ..lineTo(unit * .725, unit * .31)
+        ..close(),
+      paint,
+    );
+  }
+
+  void _drawTail(Canvas canvas, double unit, Color coat, Color outline) {
+    final stroke = Paint()
+      ..color = coat
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = unit * .045
+      ..strokeCap = StrokeCap.round;
+    final outlineStroke = Paint()
+      ..color = outline
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = unit * .065
+      ..strokeCap = StrokeCap.round;
+    final path = Path()
+      ..moveTo(unit * .79, unit * .61)
+      ..cubicTo(
+        unit * .93,
+        unit * .62,
+        unit * .92,
+        unit * .50,
+        unit * .90,
+        unit * .49,
+      );
+    canvas.drawPath(path, outlineStroke);
+    canvas.drawPath(path, stroke);
+  }
+
+  void _drawLegs(Canvas canvas, double unit, Color coat, Color outline) {
+    final paint = Paint()..color = coat;
+    final stroke = Paint()
+      ..color = outline
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = unit * .012;
+    for (final x in [.30, .70]) {
+      final foot = RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center: Offset(unit * x, unit * .765),
+          width: unit * .07,
+          height: unit * .045,
+        ),
+        Radius.circular(unit * .014),
+      );
+      canvas.drawRRect(foot, paint);
+      canvas.drawRRect(foot, stroke);
+    }
+  }
+
+  void _drawOutline(
+    Canvas canvas,
+    RRect body,
+    Path leftEar,
+    Path rightEar,
+    Color outline,
+    double unit,
+  ) {
+    final stroke = Paint()
+      ..color = outline
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = unit * .014
+      ..strokeJoin = StrokeJoin.round;
+    canvas.drawPath(leftEar, stroke);
+    canvas.drawPath(rightEar, stroke);
+    canvas.drawRRect(body, stroke);
+  }
+
+  void _drawFace(Canvas canvas, double unit, Color outline) {
+    final blinkAmount = math
+        .max(autoBlink, math.max(1 - face.leftEye, 1 - face.rightEye))
+        .clamp(0.0, 1.0);
+    final tired = face.pitch > .32;
+    final leftEye = Offset(unit * .39, unit * .485);
+    final rightEye = Offset(unit * .61, unit * .485);
+    _drawEye(canvas, unit, leftEye, blinkAmount, tired);
+    _drawEye(canvas, unit, rightEye, blinkAmount, tired);
+
+    final line = Paint()
+      ..color = outline
+      ..strokeWidth = unit * .012
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(
+      Offset(unit * .30, unit * .53),
+      Offset(unit * .24, unit * .525),
+      line,
+    );
+    canvas.drawLine(
+      Offset(unit * .30, unit * .56),
+      Offset(unit * .24, unit * .565),
+      line,
+    );
+    canvas.drawLine(
+      Offset(unit * .70, unit * .53),
+      Offset(unit * .76, unit * .525),
+      line,
+    );
+    canvas.drawLine(
+      Offset(unit * .70, unit * .56),
+      Offset(unit * .76, unit * .565),
+      line,
+    );
+
+    canvas.drawCircle(
+      Offset(unit * .50, unit * .555),
+      unit * .010,
+      Paint()..color = outline,
+    );
+    _drawMouth(canvas, unit, outline);
+  }
+
+  void _drawEye(
+    Canvas canvas,
+    double unit,
+    Offset center,
+    double blinkAmount,
+    bool tired,
+  ) {
+    final blink = blinkAmount.clamp(0.0, 1.0);
+    if (blink > .72 || tired) {
+      final y = center.dy + (tired ? unit * .015 : 0);
       canvas.drawLine(
-        Offset(eyeRect.left + size.width * .016, center.dy),
-        Offset(eyeRect.right - size.width * .016, center.dy),
+        Offset(center.dx - unit * .030, y),
+        Offset(center.dx + unit * .030, y - (tired ? unit * .008 : 0)),
         Paint()
           ..color = ink
-          ..strokeWidth = size.width * .012
+          ..strokeWidth = unit * .014
           ..strokeCap = StrokeCap.round,
       );
       return;
     }
-    canvas.drawOval(eyeRect, Paint()..color = Colors.white);
-    canvas.drawOval(eyeRect.deflate(size.width * .025), Paint()..color = ink);
-    canvas.drawCircle(
-      Offset(center.dx - size.width * .014, center.dy - size.height * .018),
-      size.width * .012,
-      Paint()..color = Colors.white,
-    );
-    final cover = (1 - open) * eyeRect.height * .82;
-    canvas.drawRect(
-      Rect.fromLTWH(eyeRect.left, eyeRect.top, eyeRect.width, cover),
-      Paint()..color = const Color(0xFF2E2420).withValues(alpha: .18),
-    );
-  }
-
-  void _drawWhiskers(Canvas canvas, Size size, Color color) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = size.width * .006
-      ..strokeCap = StrokeCap.round;
-    for (final y in [.55, .585]) {
-      canvas.drawLine(
-        Offset(size.width * .23, size.height * y),
-        Offset(size.width * .40, size.height * (y - .015)),
-        paint,
-      );
-      canvas.drawLine(
-        Offset(size.width * .60, size.height * (y - .015)),
-        Offset(size.width * .77, size.height * y),
-        paint,
-      );
-    }
-  }
-
-  void _drawScarf(Canvas canvas, Size size, Color color) {
-    final paint = Paint()..color = color;
-    final neck = Rect.fromCenter(
-      center: Offset(size.width * .5, size.height * .735),
-      width: size.width * .42,
-      height: size.height * .11,
+    final eyeRect = Rect.fromCenter(
+      center: center,
+      width: unit * .043,
+      height: unit * (.080 * (1 - blink * .55)),
     );
     canvas.drawRRect(
-      RRect.fromRectAndRadius(neck, Radius.circular(size.width * .04)),
+      RRect.fromRectAndRadius(eyeRect, Radius.circular(unit * .010)),
+      Paint()..color = ink,
+    );
+    canvas.drawCircle(
+      Offset(center.dx - unit * .007, eyeRect.top + unit * .017),
+      unit * .006,
+      Paint()..color = Colors.white,
+    );
+  }
+
+  void _drawMouth(Canvas canvas, double unit, Color outline) {
+    final open = face.mouthOpen.clamp(0.0, 1.0);
+    if (face.smile > .72 && open < .32) {
+      canvas.drawArc(
+        Rect.fromCenter(
+          center: Offset(unit * .50, unit * .565),
+          width: unit * .090,
+          height: unit * .070,
+        ),
+        0,
+        math.pi,
+        false,
+        Paint()
+          ..color = outline
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = unit * .012
+          ..strokeCap = StrokeCap.round,
+      );
+      return;
+    }
+    if (open < .18) {
+      final path = Path()
+        ..moveTo(unit * .475, unit * .575)
+        ..quadraticBezierTo(unit * .50, unit * .588, unit * .525, unit * .575);
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = outline
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = unit * .010
+          ..strokeCap = StrokeCap.round,
+      );
+      return;
+    }
+    final mouthState = open < .38
+        ? 1
+        : open < .68
+        ? 2
+        : 3;
+    final mouthSizes = {
+      1: Size(unit * .055, unit * .052),
+      2: Size(unit * .095, unit * .090),
+      3: Size(unit * .135, unit * .145),
+    };
+    final mouthSize = mouthSizes[mouthState]!;
+    final rect = Rect.fromCenter(
+      center: Offset(unit * .50, unit * .585),
+      width: mouthSize.width,
+      height: mouthSize.height,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, Radius.circular(unit * .008)),
+      Paint()..color = outline,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        rect.deflate(unit * .008),
+        Radius.circular(unit * .006),
+      ),
+      Paint()..color = const Color(0xFFF09A9C),
+    );
+  }
+
+  void _drawScarf(Canvas canvas, double unit, Color color, Color outline) {
+    final paint = Paint()
+      ..color = color
+      ..isAntiAlias = false;
+    final neck = Rect.fromCenter(
+      center: Offset(unit * .50, unit * .765),
+      width: unit * .44,
+      height: unit * .060,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(neck, Radius.circular(unit * .014)),
       paint,
     );
     paint.color = Color.lerp(color, Colors.black, .12)!;
     canvas.drawPath(
       Path()
-        ..moveTo(size.width * .48, size.height * .755)
-        ..lineTo(size.width * .61, size.height * .89)
-        ..quadraticBezierTo(
-          size.width * .55,
-          size.height * .91,
-          size.width * .47,
-          size.height * .79,
-        )
+        ..moveTo(unit * .49, unit * .785)
+        ..lineTo(unit * .59, unit * .895)
+        ..quadraticBezierTo(unit * .54, unit * .915, unit * .47, unit * .795)
         ..close(),
       paint,
     );
-    paint.color = Colors.white.withValues(alpha: .28);
+    final stroke = Paint()
+      ..color = outline
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = unit * .010;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(neck, Radius.circular(unit * .014)),
+      stroke,
+    );
     canvas.drawLine(
-      Offset(neck.left + size.width * .05, neck.center.dy),
-      Offset(neck.right - size.width * .05, neck.center.dy),
+      Offset(neck.left + unit * .04, neck.center.dy),
+      Offset(neck.right - unit * .04, neck.center.dy),
       Paint()
         ..color = Colors.white.withValues(alpha: .28)
-        ..strokeWidth = size.width * .012
+        ..strokeWidth = unit * .010
         ..strokeCap = StrokeCap.round,
     );
   }
 
   @override
   bool shouldRepaint(covariant _SimpleCatAvatarPainter oldDelegate) =>
-      oldDelegate.face != face || oldDelegate.style != style;
+      oldDelegate.face != face ||
+      oldDelegate.style != style ||
+      oldDelegate.autoBlink != autoBlink;
 }
 
 class _FaceMappedEffect extends StatelessWidget {
