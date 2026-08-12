@@ -17,6 +17,7 @@ test("health reports configuration without exposing the key", async () => {
   const body = await response.json();
   assert.equal(response.status, 200);
   assert.equal(body.ok, true);
+  assert.equal(typeof body.provider, "string");
   assert.equal(typeof body.apiKeyConfigured, "boolean");
   assert.equal(JSON.stringify(body).includes("sk-"), false);
 });
@@ -29,7 +30,7 @@ test("root describes the available API endpoints", async () => {
   assert.equal(body.endpoints.analyze, "POST /analyze");
 });
 
-test("analysis rejects an empty transcript before calling OpenAI", async () => {
+test("analysis rejects an empty transcript before calling the model provider", async () => {
   const response = await fetch(`${baseUrl}/analyze`, {
     method: "POST",
     headers: { "content-type": "application/json" },

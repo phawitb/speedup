@@ -1,8 +1,9 @@
 import { createServer } from "node:http";
 
 const port = Number(process.env.PORT || 8787);
-const apiKey = process.env.OPENAI_API_KEY;
-const model = process.env.OPENAI_MODEL || "gpt-5-mini";
+const apiKey = process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY;
+const provider = process.env.GEMINI_API_KEY ? "gemini" : "openai";
+const model = process.env.GEMINI_MODEL || "gemini-flash-latest";
 const allowedOrigin = process.env.ALLOWED_ORIGIN || "*";
 
 const schema = {
@@ -112,27 +113,44 @@ function validateInput(value) {
   return null;
 }
 
-function outputText(response) {
-  for (const item of response.output || []) {
-    for (const content of item.content || []) {
-      if (content.type === "output_text" && content.text) return content.text;
-    }
+function geminiSchema(value) {
+  if (Array.isArray(value.type)) {
+    const nonNull = value.type.find((item) => item !== "null") || "string";
+    return { ...geminiSchema({ ...value, type: nonNull }), nullable: value.type.includes("null") };
   }
-  return null;
+  const output = {};
+  if (value.type) output.type = String(value.type).toUpperCase();
+  if (value.properties) {
+    output.properties = Object.fromEntries(
+      Object.entries(value.properties).map(([key, property]) => [key, geminiSchema(property)]),
+    );
+  }
+  if (value.items) output.items = geminiSchema(value.items);
+  if (value.required) output.required = value.required;
+  if (value.minimum != null) output.minimum = value.minimum;
+  if (value.maximum != null) output.maximum = value.maximum;
+  if (value.minItems != null) output.minItems = value.minItems;
+  if (value.maxItems != null) output.maxItems = value.maxItems;
+  return output;
+}
+
+function outputText(response) {
+  return response?.candidates?.[0]?.content?.parts
+    ?.map((part) => part.text || "")
+    .join("")
+    .trim() || null;
 }
 
 async function analyze(input) {
-  if (!apiKey) throw Object.assign(new Error("OPENAI_API_KEY is not configured"), { status: 503 });
+  if (!apiKey) throw Object.assign(new Error("GEMINI_API_KEY is not configured"), { status: 503 });
   const requestBody = {
-      model,
-      store: false,
-      reasoning: { effort: "low" },
-      input: [
-        { role: "system", content: [{ type: "input_text", text: systemPrompt }] },
+      systemInstruction: {
+        parts: [{ text: systemPrompt }],
+      },
+      contents: [
         {
           role: "user",
-          content: [{
-            type: "input_text",
+          parts: [{
             text: JSON.stringify({
               topic: input.topic,
               difficulty: input.difficulty || "random",
@@ -144,29 +162,26 @@ async function analyze(input) {
           }],
         },
       ],
-      text: {
-        format: {
-          type: "json_schema",
-          name: "speakup_speech_analysis",
-          strict: true,
-          schema,
-        },
+      generationConfig: {
+        temperature: 0.2,
+        responseMimeType: "application/json",
+        responseSchema: geminiSchema(schema),
       },
   };
   let request;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      request = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    signal: AbortSignal.timeout(75_000),
-    headers: {
-      authorization: `Bearer ${apiKey}`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify(requestBody),
-      });
+      request = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+        {
+          method: "POST",
+          signal: AbortSignal.timeout(75_000),
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(requestBody),
+        },
+      );
       if (request.status < 500 || attempt == 1) break;
-    } catch (error) {
+    } catch {
       if (attempt == 1) {
         throw Object.assign(
           new Error("The AI service took too long. Please try again."),
@@ -177,13 +192,15 @@ async function analyze(input) {
   }
   const response = await request.json();
   if (!request.ok) {
-    const message = response?.error?.message || `OpenAI request failed (${request.status})`;
+    const message = response?.error?.message || `Gemini request failed (${request.status})`;
     throw Object.assign(new Error(message), { status: request.status >= 500 ? 502 : 400 });
   }
   const text = outputText(response);
-  if (!text) throw Object.assign(new Error("The model returned no analysis"), { status: 502 });
+  if (!text) throw Object.assign(new Error("Gemini returned no analysis"), { status: 502 });
   const result = JSON.parse(text);
-  result.repeatedWords = Object.fromEntries(result.repeatedWords.map(({ word, count }) => [word, count]));
+  result.repeatedWords = Array.isArray(result.repeatedWords)
+    ? Object.fromEntries(result.repeatedWords.map(({ word, count }) => [word, count]))
+    : result.repeatedWords || {};
   return result;
 }
 
@@ -193,6 +210,7 @@ export const server = createServer(async (req, res) => {
     return json(res, 200, {
       service: "SpeakUp Analysis API",
       status: "ready",
+      provider,
       model,
       apiKeyConfigured: Boolean(apiKey),
       endpoints: {
@@ -202,7 +220,7 @@ export const server = createServer(async (req, res) => {
     });
   }
   if (req.method === "GET" && req.url === "/health") {
-    return json(res, 200, { ok: true, model, apiKeyConfigured: Boolean(apiKey) });
+    return json(res, 200, { ok: true, provider, model, apiKeyConfigured: Boolean(apiKey) });
   }
   if (req.method !== "POST" || req.url !== "/analyze") return json(res, 404, { error: "Not found" });
   try {
