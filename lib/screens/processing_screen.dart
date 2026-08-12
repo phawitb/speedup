@@ -241,13 +241,10 @@ class _Step extends StatelessWidget {
                   color: Color(0xFFE83C31),
                 )
               : state == 1
-              ? const SizedBox(
-                  width: 21,
-                  height: 21,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.2,
-                    color: green,
-                  ),
+              ? const Icon(
+                  Icons.radio_button_checked_rounded,
+                  color: green,
+                  size: 21,
                 )
               : const Icon(
                   Icons.circle_outlined,

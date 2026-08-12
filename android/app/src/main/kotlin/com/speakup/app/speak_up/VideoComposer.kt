@@ -483,7 +483,7 @@ private class SpeakUpOverlay(
         if (transcriptSegments.isEmpty()) return
         val timeMs = timeUs / 1000L
         val active = transcriptSegments.firstOrNull {
-            val start = ((it["startMs"] as? Number)?.toLong() ?: 0L) - 350L
+            val start = ((it["startMs"] as? Number)?.toLong() ?: 0L) - 520L
             val end = ((it["endMs"] as? Number)?.toLong() ?: start + 3000L) + 900L
             timeMs in start..end
         } ?: transcriptSegments.lastOrNull {

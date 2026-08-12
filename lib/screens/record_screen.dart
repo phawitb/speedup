@@ -62,7 +62,15 @@ class _RecordScreenState extends State<RecordScreen> {
   }
 
   Future<void> _pickCategory() async {
-    const values = ['Random', 'General', 'Tech', 'Finance', 'IELTS', 'Gen Z'];
+    const values = [
+      'Random',
+      'General',
+      'Tech',
+      'Finance',
+      'IELTS',
+      'Gen Z',
+      'Word',
+    ];
     final selected = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -395,6 +403,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
                 'Pitch',
                 'IELTS',
                 'Gen Z',
+                'Word',
               ],
               selected: value.topicCategory,
               onSelected: (v) =>

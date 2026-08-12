@@ -26,6 +26,19 @@ class AppController extends ChangeNotifier {
     'If you could master one skill instantly, what would it be and why?',
     'Describe a place that always makes you feel calm and happy.',
   ];
+  static const wordTopics = <String>[
+    'Word: resilient — ยืดหยุ่นและฟื้นตัวได้เร็ว. Make one sentence using this word.',
+    'Word: thoughtful — รอบคอบ/ใส่ใจผู้อื่น. Make one sentence using this word.',
+    'Word: convenient — สะดวก. Make one sentence using this word.',
+    'Word: overwhelming — มากเกินรับไหว. Make one sentence using this word.',
+    'Word: meaningful — มีความหมาย. Make one sentence using this word.',
+    'Word: improve — พัฒนาให้ดีขึ้น. Make one sentence using this word.',
+    'Word: peaceful — สงบ. Make one sentence using this word.',
+    'Word: confident — มั่นใจ. Make one sentence using this word.',
+  ];
+
+  List<String> get _activeTopics =>
+      settings.topicCategory == 'Word' ? wordTopics : topics;
 
   static Future<AppController> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -101,8 +114,9 @@ class AppController extends ChangeNotifier {
   void resetSession({bool newTopic = false}) {
     var topic = session.topic;
     if (newTopic) {
-      final index = (topics.indexOf(topic) + 1) % topics.length;
-      topic = topics[index];
+      final activeTopics = _activeTopics;
+      final index = (activeTopics.indexOf(topic) + 1) % activeTopics.length;
+      topic = activeTopics[index];
       _prefs.setString('topic', topic);
     }
     session = PracticeSession(topic: topic);
@@ -114,15 +128,20 @@ class AppController extends ChangeNotifier {
     isRandomizing = true;
     try {
       final original = session.topic;
-      var index = topics.indexOf(original);
+      final activeTopics = _activeTopics;
+      var index = activeTopics.indexOf(original);
       for (var turn = 0; turn < 9; turn++) {
-        index = (index + 1 + (turn % (topics.length - 1))) % topics.length;
-        session = PracticeSession(topic: topics[index]);
+        index =
+            (index + 1 + (turn % (activeTopics.length - 1))) %
+            activeTopics.length;
+        session = PracticeSession(topic: activeTopics[index]);
         notifyListeners();
         await Future<void>.delayed(Duration(milliseconds: 75 + turn * 10));
       }
       if (session.topic == original) {
-        session = PracticeSession(topic: topics[(index + 1) % topics.length]);
+        session = PracticeSession(
+          topic: activeTopics[(index + 1) % activeTopics.length],
+        );
         notifyListeners();
       }
       await _prefs.setString('topic', session.topic);
